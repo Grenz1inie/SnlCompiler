@@ -1,0 +1,11 @@
+program recdemo
+type point = record
+    integer x ;
+    integer y ;
+end ;
+var point p ;
+begin
+    p.x := 10 ;
+    p.y := 20 ;
+    write(p.x)
+end.

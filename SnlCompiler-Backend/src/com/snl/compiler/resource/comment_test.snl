@@ -1,0 +1,11 @@
+program p
+{ 这是程序头注释 }
+type t = integer ;
+var t v1;
+    char v2;
+begin
+    { 读入并加 10 }
+    read(v1);
+    v1:=v1+10;
+    write(v1)
+end.

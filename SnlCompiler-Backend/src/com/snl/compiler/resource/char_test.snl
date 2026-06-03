@@ -1,0 +1,6 @@
+program chardemo
+var char c ;
+begin
+    c := 'A' ;
+    write(c)
+end.

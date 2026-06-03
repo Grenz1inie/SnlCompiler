@@ -1,0 +1,87 @@
+# IDE and OS (Common)
+.idea/
+.vscode/
+!.vscode/extensions.json
+.settings/
+.project
+.classpath
+*.iml
+*.iws
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+Desktop.ini
+.DS_Store
+# Common Patterns
+*.tmp
+*.bak
+*.swp
+*.log
+.env
+.env.*
+!.env.example
+
+# Java / Backend
+**/bin/
+**/out/
+**/target/
+**/*.class
+.mtj.tmp/
+
+# Backend patterns (Manual Jars)
+SnlCompiler-Backend/*.jar
+SnlCompiler-Backend/*.war
+SnlCompiler-Backend/*.ear
+
+# Frontend (Vue/Vite/TS)
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/coverage/
+**/cypress/videos/
+**/cypress/screenshots/
+**/__screenshots__/
+*.local
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+
+# AI & Tool Artifacts (GitNexus, MCP, Copilot, etc.)
+.agents/
+.claude/
+.gitnexus/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+**/mcp_*/
+**/skill_*/
+**/agent_*/
+**/memories/
+**/sessions/
+**/debug-logs/
+**/transcripts/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.timestamp-*-*.mjs
+
+# Python
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# AI Agent & Tools (GitNexus, MCP, Skills)
+.agents/
+.claude/
+.gitnexus/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+
+
