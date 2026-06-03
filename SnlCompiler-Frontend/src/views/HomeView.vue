@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import TheWelcome from '../components/TheWelcome.vue'
+import CompilerWorkbench from '../components/CompilerWorkbench.vue'
 </script>
 
 <template>
-  <main>
-    <TheWelcome />
-  </main>
+  <CompilerWorkbench />
 </template>
