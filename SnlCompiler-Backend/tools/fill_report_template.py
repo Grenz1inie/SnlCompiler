@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Fill 编译课程实验报告模板.docx with complete experiment report content."""
 import os
 import re
@@ -32,7 +32,7 @@ COVER = {
 }
 
 EXPERIMENT_DESC = (
-    '本实验依据《编译原理实验要求》PPT（2026.05 版），在 Java + Swing 环境下实现了 '
+    '本实验依据《编译原理实验要求》PPT（2026.05 版），在 Java HTTP API + Vue 前端环境下实现了 '
     'SNL（Small Nested Language）编译前端，包含词法分析、LL(1) 语法分析、递归下降语法分析和语义分析四个模块。'
     '词法分析器将 SNL 源程序扫描为 Token 序列，支持外部/内部两种表示；LL(1) 分析器基于 104 条产生式与预测分析表'
     '输出推导过程；递归下降分析器按非终结符编写子程序并构建语法树；语义分析器在语法树基础上建立符号表并进行语义检查。'
@@ -42,19 +42,19 @@ EXPERIMENT_DESC = (
 TEAM_ROWS = [
     ('【成员1姓名】', '词法分析（Lexer.java）、Constants 配置、测试用例', '35%', '共同讨论 SNL 文法与测试方案，定期合并代码'),
     ('【成员2姓名】', 'LL(1) 语法分析（Parser.java）、预测分析表调试', '30%', '共同讨论 SNL 文法与测试方案，定期合并代码'),
-    ('【成员3姓名】', '递归下降分析、语义分析、Swing 界面（MainFrame）', '35%', '共同讨论 SNL 文法与测试方案，定期合并代码'),
+    ('【成员3姓名】', '递归下降分析、语义分析、前端工作台与 API 联调', '35%', '共同讨论 SNL 文法与测试方案，定期合并代码'),
 ]
 
 PLATFORM = [
     '操作系统：Windows 10/11（64 位）',
     'JDK 版本：JDK 8 及以上',
     '开发语言：Java',
-    '界面框架：Java Swing',
+    '界面框架：Vue 3 + Element Plus',
     '构建方式：javac 命令行编译，无 Maven/Gradle',
     '项目路径：d:\\bianyi',
-    '入口类：com.snl.compiler.ui.MainFrame',
-    '编译命令：javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.java',
-    '运行命令：java -cp bin com.snl.compiler.ui.MainFrame',
+    '入口类：com.snl.compiler.Main',
+    '编译命令：javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })',
+    '运行命令：java -cp bin com.snl.compiler.Main 8080 ../SnlCompiler-Frontend/dist',
     '自动化测试：java -cp "bin;tools" FullTest（30/30 通过，覆盖文档全部用例）',
 ]
 
@@ -87,7 +87,7 @@ METHOD_DESIGN = [
     )),
     ('4.5 程序结构与模块划分', (
         'core/lexer — 词法分析；core/parser — LL(1) 与递归下降；core/semantic — 语义分析；'
-        'core/ast — 语法树节点；infra/config — Constants 文法与分析表；ui — MainFrame 图形界面；'
+        'core/ast — 语法树节点；infra/config — Constants 文法与分析表；controller — HTTP API；service — 编译流程门面；'
         'resource — 测试用 SNL 源文件（sample、comment_test、record_test、bubble_sort、char_test 等）。'
     )),
 ]
@@ -304,3 +304,4 @@ if __name__ == '__main__':
     if not os.path.isfile(TEMPLATE):
         raise SystemExit('Template not found: ' + TEMPLATE)
     build_document()
+

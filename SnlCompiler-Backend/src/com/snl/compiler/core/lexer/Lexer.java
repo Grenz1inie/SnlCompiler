@@ -104,7 +104,6 @@ public class Lexer {
 					}
 					sb = new StringBuffer();
 				}
-				int commentStart = i + 1;
 				while (i < s.length() && s.charAt(i) != '}') {
 					if (s.charAt(i) == '\n') {
 						line++;

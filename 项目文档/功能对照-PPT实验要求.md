@@ -1,4 +1,4 @@
-# SNL Compiler × 最新版 PPT 功能对照（已完成）
+﻿# SNL Compiler × 最新版 PPT 功能对照（已完成）
 
 > **依据文件**：`1.编译原理实验要求(1).ppt`（2026.05）  
 > **更新日期**：2026-05-29  
@@ -23,7 +23,7 @@
 | 词法分析程序 | ✅ `Lexer.java` |
 | 递归下降 **或** LL(1) | ✅ 两种均有独立按钮 |
 | 语义分析 | ✅ `SemanticAnalyzer.java` |
-| 源语言 SNL / 实现语言不限 | ✅ Java + Swing |
+| 源语言 SNL / 实现语言不限 | ✅ Java HTTP API + Vue |
 
 ---
 
@@ -93,7 +93,8 @@
 
 ```powershell
 cd d:\bianyi
-javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.java
-java -cp bin com.snl.compiler.ui.MainFrame
+javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })
+java -cp bin com.snl.compiler.Main 8080 ../SnlCompiler-Frontend/dist
 java -cp "bin;tools" FullTest
 ```
+

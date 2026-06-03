@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -42,7 +42,7 @@ doc.add_paragraph()
 
 add_heading('一、本次实验描述')
 add_body(
-    '本实验在 Java + Swing 环境下实现了 SNL（Small Nested Language）编译前端，'
+    '本实验在 Java HTTP API + Vue 前端环境下实现了 SNL（Small Nested Language）编译前端，'
     '包含词法分析、LL(1) 语法分析、递归下降语法分析和语义分析四个模块。'
     '词法分析器将 SNL 源程序转换为 Token 内部表示序列；LL(1) 分析器基于预测分析表输出语法推导过程；'
     '递归下降分析器按非终结符编写子程序并输出语法错误信息；语义分析器在语法树基础上建立符号表并进行语义检查。'
@@ -67,7 +67,7 @@ add_heading('三、实验平台及环境')
 add_body('操作系统：Windows 10/11')
 add_body('JDK 版本：JDK 8 及以上')
 add_body('开发语言：Java')
-add_body('界面框架：Java Swing')
+add_body('界面框架：Vue 3 + Element Plus')
 add_body('构建方式：javac 命令行编译')
 add_body('项目路径：d:\\bianyi')
 
@@ -116,9 +116,10 @@ add_body('Parser.java — LL(1) 语法分析')
 add_body('RecursiveDescentParser.java — 递归下降语法分析')
 add_body('SemanticAnalyzer.java — 语义分析')
 add_body('Constants.java — 文法规则与分析表')
-add_body('MainFrame.java — 图形界面入口')
+add_body('Main.java — 后端服务入口')
 add_body('完整源码见 src/com/snl/compiler/ 目录。')
 
 out = r'd:\bianyi\编译原理实验报告-已完成.docx'
 doc.save(out)
 print('saved', out)
+

@@ -5,10 +5,7 @@ import java.util.List;
 
 import com.snl.compiler.core.ast.BaseASTNode;
 import com.snl.compiler.core.ast.BaseASTNode.DecKind;
-import com.snl.compiler.core.ast.BaseASTNode.ExpKind;
 import com.snl.compiler.core.ast.BaseASTNode.ExpType;
-import com.snl.compiler.core.ast.BaseASTNode.NodeKind;
-import com.snl.compiler.core.ast.BaseASTNode.StmKind;
 import com.snl.compiler.core.ast.BaseASTNode.VarKind;
 import com.snl.compiler.model.symbol.Symbol;
 import com.snl.compiler.model.symbol.Symbol.SymbolKind;

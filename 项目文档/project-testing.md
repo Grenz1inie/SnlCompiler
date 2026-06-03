@@ -1,8 +1,8 @@
-# SNL Compiler 项目测试文档
+﻿# SNL Compiler 项目测试文档
 
 ## 1. 测试目标
 
-本文档用于支撑 SNL Compiler 的全场景正确性验证，覆盖词法分析、LL(1) 语法分析、静态配置初始化、模型结构和 Swing 交互流程。测试体系按单元测试、集成测试、端到端测试三层组织，要求测试用例可落地、可追溯、可重复执行。
+本文档用于支撑 SNL Compiler 的全场景正确性验证，覆盖词法分析、LL(1) 语法分析、静态配置初始化、模型结构和 前后端交互流程。测试体系按单元测试、集成测试、端到端测试三层组织，要求测试用例可落地、可追溯、可重复执行。
 
 核心质量目标：
 
@@ -28,7 +28,7 @@
 在项目根目录执行：
 
 ```powershell
-javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.java
+javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 ```
 
 期望结果：
@@ -45,7 +45,7 @@ javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.j
 | --- | --- | --- | --- |
 | 单元测试 | `Lexer`、`Parser`、`Constants`、`Token`、`Rule` | 验证单个类或单个方法的确定性行为 | 临时 Java 测试类直接调用核心方法 |
 | 集成测试 | `Constants + Lexer + Parser` | 验证完整编译前端核心链路 | 编译并运行临时集成测试类 |
-| 端到端测试 | `MainFrame` GUI | 验证用户视角操作闭环 | 启动 Swing 程序进行手工或半自动验证 |
+| 端到端测试 | Vue 前端 + HTTP API | 验证用户视角操作闭环 | 启动前端页面和后端服务进行验证 |
 
 ## 4. 覆盖率量化要求
 
@@ -305,7 +305,7 @@ java -cp "bin;$testDir" IntegrationSmokeTest
 在项目根目录执行：
 
 ```powershell
-java -cp bin com.snl.compiler.ui.MainFrame
+java -cp bin com.snl.compiler.Main 8080 ../SnlCompiler-Frontend/dist
 ```
 
 将以下代码粘贴到左侧源码输入区：
@@ -417,7 +417,7 @@ read(v1).
 1. 编译项目：
 
 ```powershell
-javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.java
+javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 ```
 
 2. 运行单元测试样例，确认输出 `UNIT_TEST_PASS`。
@@ -430,14 +430,14 @@ javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.j
 
 | 现象 | 优先检查位置 | 排查方向 |
 | --- | --- | --- |
-| 编译失败 | `MainFrame`、包路径、JDK 编码 | 是否使用 `-encoding UTF-8`，包名与目录是否一致 |
+| 编译失败 | `Main`、包路径、JDK 编码 | 是否使用 `-encoding UTF-8`，包名与目录是否一致 |
 | 编译提示 `非法字符: '\ufeff'` | Java 源文件编码 | 将源码另存为 UTF-8 无 BOM 后重新编译 |
 | 词法全部失败 | `Constants.initialize()` | 是否在调用 `Lexer.doToken()` 前初始化配置 |
 | 合法标识符失败 | `Lexer.isIdentifier()` | 首字符与后续字符规则是否被修改 |
 | 数字边界异常 | `Lexer.isINTC()` | `0` 与前导零分支是否正确 |
 | 赋值符无法识别 | `Lexer.doToken()` | `:` 后读取逻辑和 `:=` 分隔符下标是否正确 |
 | 语法分析失败 | `Parser.doGrammar()`、`Constants.analysis`、`Constants.rule` | Token 还原、预测分析表和产生式是否一致 |
-| GUI 语法按钮状态异常 | `MainFrame.runLexicalAnalysis()` | `Lexer.doToken()` 返回值是否正确驱动按钮启用状态 |
+| 前端阶段按钮状态异常 | `CompilerWorkbench.runStage()` | API 返回值是否正确驱动按钮和结果状态 |
 
 ## 11. 可追溯记录模板
 
@@ -456,3 +456,5 @@ javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.j
 | E2E 异常样例 | 通过或失败 |
 | 覆盖率 | 行覆盖率、分支覆盖率 |
 | 遗留问题 | 问题编号或现象描述 |
+
+

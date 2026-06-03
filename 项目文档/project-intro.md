@@ -1,8 +1,8 @@
-# SNL Compiler 项目介绍文档
+﻿# SNL Compiler 项目介绍文档
 
 ## 1. 项目定位
 
-SNL Compiler 是一个面向编译原理课程实验的 SNL（Small Nested Language）编译前端演示项目。项目基于原生 Java 与 Swing 图形界面实现，聚焦“源程序输入 → 词法分析 → LL(1) 语法分析 → 分析结果展示”的前端编译流程，适合用于课程实验、课堂演示、编译前端原型验证与 SNL 文法学习。
+SNL Compiler 是一个面向编译原理课程实验的 SNL（Small Nested Language）编译前端演示项目。项目基于原生 Java 与 Vue 前端工作台实现，聚焦“源程序输入 → 词法分析 → LL(1) 语法分析 → 分析结果展示”的前端编译流程，适合用于课程实验、课堂演示、编译前端原型验证与 SNL 文法学习。
 
 项目当前不包含目标代码生成、解释执行、优化器、符号表语义检查或运行时系统，核心目标是清晰展示词法自动机与 LL(1) 预测分析表驱动的语法推导过程。
 
@@ -53,7 +53,7 @@ Token 类型约定如下：
 
 ### 3.3 图形界面交互
 
-图形界面由 `com.snl.compiler.ui.MainFrame` 提供，包含以下区域与功能：
+前端界面由 `SnlCompiler-Frontend/src/components/CompilerWorkbench.vue` 提供，后端入口由 `com.snl.compiler.Main` 提供，包含以下区域与功能：
 
 - 源码输入区：输入或粘贴 SNL 源程序。
 - Token 表示选择：在“外部表示”和“内部表示”之间切换。
@@ -71,7 +71,7 @@ Token 类型约定如下：
 - 程序必须以 `.` 作为词法层面的正常结束标志。
 - LL(1) 预测分析表驱动的语法推导。
 - 词法错误和语法错误的基础提示。
-- Swing 桌面端可视化操作。
+- 浏览器端可视化操作。
 
 ### 4.2 暂不支持范围
 
@@ -87,7 +87,7 @@ Token 类型约定如下：
 - 编译原理课程中词法分析与语法分析实验。
 - LL(1) 预测分析表工作机制演示。
 - SNL 语言文法学习与手工推导结果校验。
-- 小型 Java Swing 课程项目结构示例。
+- 小型 Vue 3 + Element Plus 课程项目结构示例。
 - 对编译前端进行二次开发前的教学原型。
 
 不建议将本项目直接用于生产级编译器、完整语言工具链或大规模工程化语言处理场景。
@@ -99,7 +99,7 @@ Token 类型约定如下：
 | 类别 | 选型 | 说明 |
 | --- | --- | --- |
 | 语言 | Java | 使用标准 JDK API 实现 |
-| UI | Java Swing | 提供桌面图形界面 |
+| UI | Vue 3 + Element Plus | 提供桌面图形界面 |
 | 构建 | javac | 无外部构建工具依赖 |
 | 运行 | JVM | JDK 8 或更高版本 |
 | 测试方式 | javac + java + 可选临时测试类 | 适合轻量课程项目 |
@@ -108,7 +108,7 @@ Token 类型约定如下：
 
 | 路径或包 | 职责 |
 | --- | --- |
-| `src/com/snl/compiler/ui/MainFrame.java` | Swing 主界面、按钮事件、状态控制、帮助信息 |
+| `src/com/snl/compiler/Main.java` | 后端服务入口，启动 HTTP API 与前端静态资源服务 |
 | `src/com/snl/compiler/core/lexer/Lexer.java` | 词法分析、Token 生成、错误提示 |
 | `src/com/snl/compiler/core/parser/Parser.java` | LL(1) 语法分析、栈式推导、语法错误提示 |
 | `src/com/snl/compiler/infra/config/Constants.java` | 分隔符、保留字、终结符、非终结符、预测分析表、产生式规则和共享状态 |
@@ -121,7 +121,7 @@ Token 类型约定如下：
 ```text
 用户输入 SNL 源码
   ↓
-MainFrame 读取文本框内容
+CompilerWorkbench 通过 HTTP 请求提交源码
   ↓
 Lexer.doToken(source)
   ↓
@@ -133,7 +133,7 @@ Parser.doGrammar()
   ↓
 读取 Constants.token，结合 Constants.analysis 与 Constants.rule 执行 LL(1) 推导
   ↓
-MainFrame 在输出区展示 Token 序列或语法推导结果
+CompilerWorkbench 展示 Token 序列、语法推导、AST 与语义分析结果
 ```
 
 ### 6.4 关键设计约束
@@ -148,7 +148,7 @@ MainFrame 在输出区展示 Token 序列或语法推导结果
 - 操作系统：Windows、macOS 或 Linux 均可运行，Windows PowerShell 示例最贴合当前项目路径。
 - JDK：JDK 8 或更高版本。
 - 字符编码：建议使用 UTF-8 保存源码与文档，避免中文说明乱码。
-- 图形环境：运行 Swing 主界面需要可用桌面环境。
+- 图形环境：运行 Vue 前端工作台需要可用桌面环境。
 
 ## 8. 部署与运行流程
 
@@ -157,7 +157,7 @@ MainFrame 在输出区展示 Token 序列或语法推导结果
 在项目根目录执行：
 
 ```powershell
-javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.java
+javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 ```
 
 参数说明：
@@ -165,14 +165,14 @@ javac -encoding UTF-8 -d bin -sourcepath src src/com/snl/compiler/ui/MainFrame.j
 - `-encoding UTF-8`：按 UTF-8 读取源码，避免中文字符串在不同系统编码下编译异常。
 - `-d bin`：将编译结果输出到 `bin` 目录。
 - `-sourcepath src`：指定源码根目录。
-- `src/com/snl/compiler/ui/MainFrame.java`：以主界面类作为编译入口，`javac` 会按依赖自动编译相关类。
+- `src/com/snl/compiler/Main.java`：以后端服务入口作为运行入口，`javac` 会按依赖自动编译相关类。
 
 如果当前 JDK 编译时报 `非法字符: '\ufeff'`，说明源码文件带有 UTF-8 BOM，而该 JDK 版本无法识别文件头。处理方式是将相关 Java 源文件另存为“UTF-8 无 BOM”后重新执行编译命令。
 
 ### 8.2 本地运行
 
 ```powershell
-java -cp bin com.snl.compiler.ui.MainFrame
+java -cp bin com.snl.compiler.Main 8080 ../SnlCompiler-Frontend/dist
 ```
 
 启动后可将 `src/TestData.txt` 中第一段完整 SNL 程序复制到左侧源码输入区，点击“词法分析”，成功后继续点击“语法分析”。
@@ -236,7 +236,7 @@ end.
 ### 12.2 代码风格
 
 - 保持现有 Java 包结构和命名方式。
-- UI 交互逻辑放在 `MainFrame`，核心分析逻辑放在 `core` 包。
+- 前端交互逻辑放在 Vue 工作台，后端编译逻辑放在 `core`、`service` 和 `controller` 包。
 - 静态文法配置、分析表、终结符和非终结符优先集中在 `Constants` 中维护。
 - 新增公共模型时放入 `model` 包。
 - 避免在核心分析逻辑中直接依赖 Swing 组件，保证核心模块可被测试类直接调用。
@@ -245,7 +245,7 @@ end.
 
 - 词法分析变更必须覆盖成功 Token、非法字符、错误赋值符、数字常量边界和未正常结束场景。
 - 语法分析变更必须覆盖完整合法程序、缺失关键字、终结符不匹配和 Token 序列提前结束场景。
-- UI 变更至少手工验证按钮状态、输出区内容、帮助弹窗和状态栏文案。
+- 前端变更至少验证阶段按钮、输出面板、Token 表格和 API 错误提示。
 - 核心代码覆盖率目标不低于 90%，重点统计 `Lexer`、`Parser`、`Constants` 初始化路径和模型类。
 
 ## 13. 扩展方向
@@ -255,3 +255,5 @@ end.
 - 将 `Constants` 中的文法规则与预测分析表外置为配置文件，提升可维护性。
 - 增加语义分析、符号表、类型检查和错误恢复机制。
 - 增加文件打开、保存、示例加载和分析结果导出功能。
+
+
