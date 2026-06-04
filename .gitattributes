@@ -1,1 +1,22 @@
+# 全局默认：自动检测文本文件，统一使用 LF 换行（标准）
 * text=auto eol=lf
+
+# 专门处理 Maven / Gradle 脚本（必须 LF，否则跨平台报错）
+/mvnw text eol=lf
+/gradlew text eol=lf
+
+# Windows 批处理文件（必须 CRLF）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 声明二进制文件（Git 不处理换行，不破坏文件）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.jar binary
+*.war binary

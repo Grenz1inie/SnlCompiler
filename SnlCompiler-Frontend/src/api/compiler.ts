@@ -12,6 +12,40 @@ export interface TokenDto {
   lexeme: string
 }
 
+export interface SyntaxTreeNodeDto {
+  id: string
+  parentId: string | null
+  label: string
+  kind: string
+  line: number
+  depth: number
+  order: number
+}
+
+export interface SyntaxGraphNodeDto {
+  id: string
+  shape: string
+  x: number
+  y: number
+  width: number
+  height: number
+  label: string
+  kind: string
+  line: number
+}
+
+export interface SyntaxGraphEdgeDto {
+  id: string
+  source: string
+  target: string
+  shape: string
+}
+
+export interface SyntaxGraphDto {
+  nodes: SyntaxGraphNodeDto[]
+  edges: SyntaxGraphEdgeDto[]
+}
+
 export interface CompileResponse {
   stage: CompileStage
   success: boolean
@@ -23,6 +57,8 @@ export interface CompileResponse {
   symbolTableOutput: string | null
   errors: string[]
   tokens: TokenDto[]
+  syntaxTree: SyntaxTreeNodeDto[]
+  syntaxGraph: SyntaxGraphDto
 }
 
 const API_BASE_URL = import.meta.env.VITE_COMPILER_API_BASE_URL ?? ''

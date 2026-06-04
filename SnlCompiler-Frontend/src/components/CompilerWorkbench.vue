@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElButton, ElRadioButton, ElRadioGroup, ElSegmented, ElTag, ElTooltip } from 'element-plus'
-import { compileStage, type CompileResponse, type CompileStage } from '@/api/compiler'
+import { Graph } from '@antv/x6'
+import {
+  compileStage,
+  type CompileResponse,
+  type CompileStage,
+  type SyntaxGraphNodeDto,
+} from '@/api/compiler'
 
 interface StageAction {
   id: CompileStage
@@ -16,13 +22,13 @@ const stages: StageAction[] = [
     id: 'grammar',
     label: 'LL(1)语法分析',
     shortLabel: 'LL(1)',
-    hint: '执行预测分析并输出规约过程',
+    hint: '绘制普通语法树并报告语法分析结果',
   },
   {
     id: 'recursive',
     label: '递归下降分析',
     shortLabel: 'RD',
-    hint: '构建抽象语法树并返回解析错误',
+    hint: '绘制普通语法树并报告语法分析结果',
   },
   { id: 'semantic', label: '语义分析', shortLabel: 'SEM', hint: '执行语义检查并输出符号表' },
 ]
@@ -45,15 +51,19 @@ const activeStage = ref<CompileStage>('lexical')
 const result = ref<CompileResponse | null>(null)
 const loadingStage = ref<CompileStage | null>(null)
 const errorMessage = ref('')
+const syntaxGraphContainer = ref<HTMLDivElement | null>(null)
+let syntaxGraph: Graph | null = null
+let syntaxGraphElement: HTMLDivElement | null = null
 
 const canRun = computed(() => source.value.trim().length > 0 && loadingStage.value === null)
 const activeStageMeta = computed(() => {
   const stage = stages.find((s) => s.id === activeStage.value)
-  return stage! // 或者是 stages[0] as StageAction
+  return stage!
 })
 const sourceLineCount = computed(() => source.value.split(/\r\n|\r|\n/).length)
 const tokenCount = computed(() => result.value?.tokens.length ?? 0)
 const errorCount = computed(() => result.value?.errors.length ?? 0)
+const hasSyntaxGraph = computed(() => (result.value?.syntaxGraph?.nodes.length ?? 0) > 0)
 
 const resultTitle = computed(() => {
   if (!result.value) {
@@ -72,6 +82,185 @@ const displayOutput = computed(() => {
   }
   return result.value.output || '没有输出。'
 })
+
+const representationTitle = computed(() => {
+  if (!result.value) {
+    return '分析表示'
+  }
+  if (result.value.stage === 'grammar') {
+    return 'LL(1)语法分析表示'
+  }
+  if (result.value.stage === 'recursive') {
+    return tokenView.value === 'internal' ? '递归下降内部表示' : '递归下降外部表示'
+  }
+  return tokenView.value === 'internal' ? '内部表示' : '外部表示'
+})
+
+const representationOutput = computed(() => {
+  if (!result.value) {
+    return ''
+  }
+  if (result.value.stage === 'grammar' && result.value.grammarOutput) {
+    return result.value.grammarOutput
+  }
+  if (tokenView.value === 'internal') {
+    return result.value.internalTokenOutput || result.value.grammarOutput || ''
+  }
+  return result.value.externalTokenOutput || result.value.grammarOutput || ''
+})
+
+const shouldShowRepresentation = computed(() => Boolean(representationOutput.value))
+
+function registerSyntaxShapes() {
+  Graph.registerNode(
+    'syntax-node',
+    {
+      inherit: 'rect',
+      width: 170,
+      height: 58,
+      attrs: {
+        body: {
+          rx: 8,
+          ry: 8,
+          fill: '#0f172a',
+          stroke: '#5eead4',
+          strokeWidth: 1.5,
+          filter: 'drop-shadow(0 12px 22px rgba(20, 184, 166, 0.22))',
+        },
+        label: {
+          fill: '#e0f2fe',
+          fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
+          fontSize: 12,
+          fontWeight: 700,
+          textWrap: {
+            width: 148,
+            height: 44,
+            ellipsis: true,
+          },
+        },
+      },
+    },
+    true,
+  )
+
+  Graph.registerEdge(
+    'syntax-edge',
+    {
+      inherit: 'edge',
+      zIndex: 0,
+      attrs: {
+        line: {
+          stroke: '#38bdf8',
+          strokeWidth: 2.3,
+          strokeDasharray: '9 7',
+          targetMarker: {
+            name: 'block',
+            width: 9,
+            height: 7,
+          },
+          class: 'syntax-edge-line',
+        },
+      },
+    },
+    true,
+  )
+}
+
+function createSyntaxGraph() {
+  if (!syntaxGraphContainer.value) {
+    return
+  }
+
+  syntaxGraph?.dispose()
+  syntaxGraphElement = syntaxGraphContainer.value
+  syntaxGraph = new Graph({
+    container: syntaxGraphContainer.value,
+    autoResize: true,
+    panning: true,
+    mousewheel: {
+      enabled: true,
+      modifiers: ['ctrl', 'meta'],
+      minScale: 0.25,
+      maxScale: 1.7,
+    },
+    interacting: {
+      nodeMovable: true,
+    },
+    background: {
+      color: 'transparent',
+    },
+    grid: {
+      visible: true,
+      type: 'dot',
+      size: 18,
+      args: {
+        color: 'rgba(148, 163, 184, 0.28)',
+        thickness: 1,
+      },
+    },
+  })
+}
+
+function nodeStroke(kind: string) {
+  const normalized = kind.toLowerCase()
+  if (normalized === 'prok' || normalized === 'pheadk') {
+    return '#fbbf24'
+  }
+  if (normalized === 'stmk' || normalized === 'expk') {
+    return '#60a5fa'
+  }
+  return '#5eead4'
+}
+
+function renderSyntaxGraph() {
+  if (!syntaxGraph || syntaxGraphElement !== syntaxGraphContainer.value) {
+    createSyntaxGraph()
+  }
+  if (!syntaxGraph) {
+    return
+  }
+
+  const graph = result.value?.syntaxGraph
+  syntaxGraph.clearCells()
+  if (!graph || graph.nodes.length === 0) {
+    return
+  }
+
+  syntaxGraph.fromJSON({
+    nodes: graph.nodes.map((node: SyntaxGraphNodeDto) => ({
+      id: node.id,
+      shape: node.shape || 'syntax-node',
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      attrs: {
+        body: {
+          stroke: nodeStroke(node.kind),
+        },
+        label: {
+          text: node.label,
+        },
+      },
+      data: {
+        kind: node.kind,
+        line: node.line,
+      },
+    })),
+    edges: graph.edges.map((edge) => ({
+      id: edge.id,
+      shape: edge.shape || 'syntax-edge',
+      source: edge.source,
+      target: edge.target,
+    })),
+  })
+
+  syntaxGraph.centerContent()
+  syntaxGraph.zoomToFit({
+    padding: 34,
+    maxScale: 1,
+  })
+}
 
 async function runStage(stage: CompileStage = activeStage.value) {
   if (!canRun.value) {
@@ -99,13 +288,34 @@ function resetSource() {
   source.value = sampleSource
   result.value = null
   errorMessage.value = ''
+  syntaxGraph?.clearCells()
 }
 
 function clearSource() {
   source.value = ''
   result.value = null
   errorMessage.value = ''
+  syntaxGraph?.clearCells()
 }
+
+onMounted(() => {
+  registerSyntaxShapes()
+  createSyntaxGraph()
+})
+
+onBeforeUnmount(() => {
+  syntaxGraph?.dispose()
+  syntaxGraph = null
+  syntaxGraphElement = null
+})
+
+watch(
+  () => [result.value?.stage, result.value?.syntaxGraph?.nodes.length ?? 0],
+  async () => {
+    await nextTick()
+    requestAnimationFrame(renderSyntaxGraph)
+  },
+)
 </script>
 
 <template>
@@ -118,7 +328,7 @@ function clearSource() {
         <p class="eyebrow">SNL Compiler</p>
         <h1>编译分析工作台</h1>
         <p class="subtitle">
-          后端编译核心保持不变，前端通过 API 承接词法、语法、递归下降和语义分析。
+          后端负责编译核心逻辑的处理，前端通过 API 承接词法、语法、递归下降和语义分析。
         </p>
       </div>
 
@@ -208,9 +418,29 @@ function clearSource() {
           </el-tag>
         </div>
 
-        <Transition name="panel-fade" mode="out-in">
-          <pre :key="displayOutput" class="output-view">{{ displayOutput }}</pre>
-        </Transition>
+        <div class="analysis-output">
+          <div v-show="hasSyntaxGraph" class="tree-section">
+            <div class="section-caption">
+              <span>AntV X6 Syntax Tree</span>
+              <small>{{ result?.syntaxGraph?.nodes.length ?? 0 }} nodes</small>
+            </div>
+            <div ref="syntaxGraphContainer" class="tree-canvas" />
+          </div>
+
+          <div v-if="shouldShowRepresentation" class="output-section">
+            <div class="section-caption">
+              <span>{{ representationTitle }}</span>
+            </div>
+            <pre class="output-view representation-view">{{ representationOutput }}</pre>
+          </div>
+
+          <div class="output-section">
+            <div class="section-caption">
+              <span>语法分析结果</span>
+            </div>
+            <pre class="output-view result-output">{{ displayOutput }}</pre>
+          </div>
+        </div>
 
         <Transition name="slide-up">
           <div v-if="result?.tokens.length" class="token-table-wrap">
@@ -460,19 +690,96 @@ h2 {
   box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.38);
 }
 
+.analysis-output {
+  display: grid;
+  grid-template-rows: auto auto auto;
+}
+
+.tree-section,
+.output-section {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.section-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 14px;
+  color: #93c5fd;
+  background: rgba(2, 6, 23, 0.35);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.section-caption small {
+  color: #9fb0c5;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.tree-canvas {
+  height: 42vh;
+  min-height: 330px;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 20% 20%, rgba(20, 184, 166, 0.16), transparent 28%),
+    radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.18), transparent 30%),
+    rgba(7, 12, 24, 0.72);
+  background-size:
+    32px 32px,
+    32px 32px,
+    auto,
+    auto,
+    auto;
+}
+
+:deep(.x6-node rect) {
+  transition:
+    stroke 0.2s ease,
+    filter 0.2s ease,
+    transform 0.2s ease;
+}
+
+:deep(.x6-node:hover rect) {
+  filter: drop-shadow(0 0 16px rgba(94, 234, 212, 0.42));
+}
+
+:deep(.x6-node) {
+  animation: node-pop 0.36s ease both;
+}
+
+:deep(.syntax-edge-line) {
+  animation: edge-flow 1.1s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.62));
+}
+
 .output-view {
-  height: 44vh;
-  min-height: 260px;
   margin: 0;
   overflow: auto;
   padding: 16px;
-  color: #dcfce7;
   background: linear-gradient(rgba(20, 184, 166, 0.05) 1px, transparent 1px), rgba(7, 12, 24, 0.78);
   background-size: 100% 28px;
   font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
   font-size: 13px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.representation-view {
+  max-height: 210px;
+  min-height: 150px;
+  color: #dbeafe;
+}
+
+.result-output {
+  max-height: 220px;
+  min-height: 140px;
+  color: #dcfce7;
 }
 
 .token-table-wrap {
@@ -559,6 +866,23 @@ h2 {
   }
   to {
     transform: translate3d(42px, -28px, 0) scale(1.12);
+  }
+}
+
+@keyframes node-pop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -32;
   }
 }
 
