@@ -45,6 +45,12 @@ const stages: StageAction[] = [
     hint: '绘制普通语法树并报告语法分析结果',
   },
   { id: 'semantic', label: '语义分析', shortLabel: 'SEM', hint: '执行语义检查并输出符号表' },
+  {
+    id: 'codegen',
+    label: 'MIPS 代码生成',
+    shortLabel: 'MIPS',
+    hint: '语义通过后生成 MIPS 汇编，可复制到 MARS/QtSpim 运行',
+  },
 ]
 
 const stageOptions = stages.map((stage) => ({
@@ -173,6 +179,9 @@ function buildLexemeTableEntries(tokens: TokenDto[], type: number) {
 const resultOutputTitle = computed(() => {
   if (result.value?.stage === 'semantic') {
     return '语义分析结果'
+  }
+  if (result.value?.stage === 'codegen') {
+    return 'MIPS 目标代码'
   }
   if (result.value?.stage === 'lexical') {
     return tokenView.value === 'internal' ? '内部表示' : '外部表示'

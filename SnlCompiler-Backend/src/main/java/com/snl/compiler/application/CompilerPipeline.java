@@ -2,6 +2,7 @@ package com.snl.compiler.application;
 
 import com.snl.compiler.api.dto.CompileRequest;
 import com.snl.compiler.api.dto.CompileResponse;
+import com.snl.compiler.application.codegen.MipsCodeGenerator;
 import com.snl.compiler.application.mapper.SyntaxGraphPreprocessor;
 import com.snl.compiler.application.mapper.SyntaxTreeMapper;
 import com.snl.compiler.application.mapper.TokenMapper;
@@ -21,13 +22,15 @@ class CompilerPipeline {
     private final AstRenderer astRenderer;
     private final SyntaxTreeMapper syntaxTreeMapper;
     private final SyntaxGraphPreprocessor syntaxGraphPreprocessor;
+    private final MipsCodeGenerator mipsCodeGenerator;
     private boolean initialized;
 
-    CompilerPipeline(TokenMapper tokenMapper, AstRenderer astRenderer, SyntaxTreeMapper syntaxTreeMapper, SyntaxGraphPreprocessor syntaxGraphPreprocessor) {
+    CompilerPipeline(TokenMapper tokenMapper, AstRenderer astRenderer, SyntaxTreeMapper syntaxTreeMapper, SyntaxGraphPreprocessor syntaxGraphPreprocessor, MipsCodeGenerator mipsCodeGenerator) {
         this.tokenMapper = tokenMapper;
         this.astRenderer = astRenderer;
         this.syntaxTreeMapper = syntaxTreeMapper;
         this.syntaxGraphPreprocessor = syntaxGraphPreprocessor;
+        this.mipsCodeGenerator = mipsCodeGenerator;
     }
 
     CompileResponse lexical(CompileRequest request) {
@@ -123,6 +126,59 @@ class CompilerPipeline {
         response.success = response.errors.isEmpty();
         response.output = renderSemanticOutput(analyzer.getErrors(), response.symbolTableOutput);
         return response;
+    }
+
+    CompileResponse codegen(CompileRequest request) {
+        CompilationContext context = parse(request);
+        CompileResponse response = CompileResponse.of("codegen");
+        response.tokens = tokenMapper.toDtos();
+        fillTokenRepresentations(response);
+        response.astOutput = astRenderer.render(context.astRoot);
+        response.syntaxTree = syntaxTreeMapper.toDtos(context.astRoot);
+        response.syntaxGraph = syntaxGraphPreprocessor.toGraph(response.syntaxTree);
+        response.errors.addAll(context.parseErrors);
+
+        if (!context.lexicalSuccess) {
+            response.success = false;
+            response.output = chooseTokenOutput(request);
+            response.errors.add(response.output);
+            return response;
+        }
+
+        if (context.astRoot == null || !context.parseErrors.isEmpty()) {
+            response.success = false;
+            response.output = "语法分析未通过，无法生成 MIPS 目标代码。";
+            return response;
+        }
+
+        SemanticAnalyzer analyzer = new SemanticAnalyzer();
+        analyzer.analyze(context.astRoot);
+        response.errors.addAll(analyzer.getErrors());
+        response.symbolTableOutput = analyzer.getSymbolTable().toString();
+        if (!response.errors.isEmpty()) {
+            response.success = false;
+            response.output = renderSemanticOutput(analyzer.getErrors(), response.symbolTableOutput);
+            return response;
+        }
+
+        String mips = mipsCodeGenerator.generate(context.astRoot);
+        response.mipsOutput = mips;
+        response.success = true;
+        response.output = renderCodegenOutput(mips, mipsCodeGenerator.getErrors());
+        return response;
+    }
+
+    private String renderCodegenOutput(String mips, List<String> codegenErrors) {
+        StringBuilder output = new StringBuilder();
+        output.append("--- MIPS 目标代码 ---\n");
+        if (codegenErrors.isEmpty()) {
+            output.append("代码生成成功。可在 MARS/QtSpim 中汇编运行。\n\n");
+        } else {
+            output.append("代码生成完成，但存在提示：\n");
+            output.append(join(codegenErrors)).append("\n\n");
+        }
+        output.append(mips);
+        return output.toString();
     }
 
     private CompilationContext parse(CompileRequest request) {

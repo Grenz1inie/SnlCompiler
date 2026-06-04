@@ -27,4 +27,8 @@ public class CompilerService {
     public synchronized CompileResponse analyzeSemantic(CompileRequest request) {
         return pipeline.semantic(request);
     }
+
+    public synchronized CompileResponse analyzeCodegen(CompileRequest request) {
+        return pipeline.codegen(request);
+    }
 }

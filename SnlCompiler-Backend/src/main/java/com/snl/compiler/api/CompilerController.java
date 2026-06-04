@@ -39,4 +39,9 @@ public class CompilerController {
     public CompileResponse semantic(@RequestBody CompileRequest request) {
         return compilerService.analyzeSemantic(request);
     }
+
+    @PostMapping("/codegen")
+    public CompileResponse codegen(@RequestBody CompileRequest request) {
+        return compilerService.analyzeCodegen(request);
+    }
 }

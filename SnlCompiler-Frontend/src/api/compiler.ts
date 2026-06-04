@@ -1,4 +1,4 @@
-export type CompileStage = 'lexical' | 'grammar' | 'recursive' | 'semantic'
+export type CompileStage = 'lexical' | 'grammar' | 'recursive' | 'semantic' | 'codegen'
 
 export interface CompileRequest {
   source: string
@@ -55,6 +55,7 @@ export interface CompileResponse {
   grammarOutput: string | null
   astOutput: string | null
   symbolTableOutput: string | null
+  mipsOutput: string | null
   errors: string[]
   tokens: TokenDto[]
   syntaxTree: SyntaxTreeNodeDto[]

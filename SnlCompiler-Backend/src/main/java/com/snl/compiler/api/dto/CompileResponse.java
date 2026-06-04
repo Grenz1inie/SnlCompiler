@@ -12,6 +12,7 @@ public class CompileResponse {
     public String grammarOutput;
     public String astOutput;
     public String symbolTableOutput;
+    public String mipsOutput;
     public List<String> errors = new ArrayList<String>();
     public List<TokenDto> tokens = new ArrayList<TokenDto>();
     public List<SyntaxTreeNodeDto> syntaxTree = new ArrayList<SyntaxTreeNodeDto>();
