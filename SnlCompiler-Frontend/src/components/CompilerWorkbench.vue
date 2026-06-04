@@ -83,33 +83,41 @@ const displayOutput = computed(() => {
   return result.value.output || '没有输出。'
 })
 
-const representationTitle = computed(() => {
-  if (!result.value) {
-    return '分析表示'
-  }
-  if (result.value.stage === 'grammar') {
-    return 'LL(1)语法分析表示'
-  }
-  if (result.value.stage === 'recursive') {
-    return tokenView.value === 'internal' ? '递归下降内部表示' : '递归下降外部表示'
-  }
-  return tokenView.value === 'internal' ? '内部表示' : '外部表示'
-})
-
-const representationOutput = computed(() => {
+const selectedTokenOutput = computed(() => {
   if (!result.value) {
     return ''
   }
-  if (result.value.stage === 'grammar' && result.value.grammarOutput) {
-    return result.value.grammarOutput
-  }
   if (tokenView.value === 'internal') {
-    return result.value.internalTokenOutput || result.value.grammarOutput || ''
+    return result.value.internalTokenOutput || ''
   }
-  return result.value.externalTokenOutput || result.value.grammarOutput || ''
+  return result.value.externalTokenOutput || ''
 })
 
-const shouldShowRepresentation = computed(() => Boolean(representationOutput.value))
+const resultOutputTitle = computed(() => {
+  if (result.value?.stage === 'semantic') {
+    return '语义分析结果'
+  }
+  if (result.value?.stage === 'lexical') {
+    return tokenView.value === 'internal' ? '内部表示' : '外部表示'
+  }
+  return '语法分析结果'
+})
+
+const combinedOutput = computed(() => {
+  if (errorMessage.value || !result.value) {
+    return displayOutput.value
+  }
+  if (result.value.stage !== 'grammar' && result.value.stage !== 'recursive') {
+    return displayOutput.value
+  }
+
+  const tokenOutput = selectedTokenOutput.value.trim()
+  const syntaxOutput = displayOutput.value.trim()
+  if (!tokenOutput) {
+    return syntaxOutput
+  }
+  return `${tokenOutput}\n\n--- 语法分析结果 ---\n${syntaxOutput}`
+})
 
 function registerSyntaxShapes() {
   Graph.registerNode(
@@ -213,6 +221,14 @@ function nodeStroke(kind: string) {
 }
 
 function renderSyntaxGraph() {
+  const graph = result.value?.syntaxGraph
+  if (!graph || graph.nodes.length === 0) {
+    syntaxGraph?.dispose()
+    syntaxGraph = null
+    syntaxGraphElement = null
+    return
+  }
+
   if (!syntaxGraph || syntaxGraphElement !== syntaxGraphContainer.value) {
     createSyntaxGraph()
   }
@@ -220,11 +236,7 @@ function renderSyntaxGraph() {
     return
   }
 
-  const graph = result.value?.syntaxGraph
   syntaxGraph.clearCells()
-  if (!graph || graph.nodes.length === 0) {
-    return
-  }
 
   syntaxGraph.fromJSON({
     nodes: graph.nodes.map((node: SyntaxGraphNodeDto) => ({
@@ -356,8 +368,8 @@ watch(
 
       <div class="control-actions">
         <el-radio-group v-model="tokenView" size="large">
-          <el-radio-button label="external">外部表示</el-radio-button>
-          <el-radio-button label="internal">内部表示</el-radio-button>
+          <el-radio-button value="external">外部表示</el-radio-button>
+          <el-radio-button value="internal">内部表示</el-radio-button>
         </el-radio-group>
 
         <el-tooltip content="调用当前选中的分析阶段" placement="bottom">
@@ -419,7 +431,7 @@ watch(
         </div>
 
         <div class="analysis-output">
-          <div v-show="hasSyntaxGraph" class="tree-section">
+          <div v-if="hasSyntaxGraph" class="tree-section">
             <div class="section-caption">
               <span>AntV X6 Syntax Tree</span>
               <small>{{ result?.syntaxGraph?.nodes.length ?? 0 }} nodes</small>
@@ -427,18 +439,11 @@ watch(
             <div ref="syntaxGraphContainer" class="tree-canvas" />
           </div>
 
-          <div v-if="shouldShowRepresentation" class="output-section">
-            <div class="section-caption">
-              <span>{{ representationTitle }}</span>
-            </div>
-            <pre class="output-view representation-view">{{ representationOutput }}</pre>
-          </div>
-
           <div class="output-section">
             <div class="section-caption">
-              <span>语法分析结果</span>
+              <span>{{ resultOutputTitle }}</span>
             </div>
-            <pre class="output-view result-output">{{ displayOutput }}</pre>
+            <pre class="output-view result-output">{{ combinedOutput }}</pre>
           </div>
         </div>
 
@@ -692,7 +697,7 @@ h2 {
 
 .analysis-output {
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto;
 }
 
 .tree-section,
@@ -722,8 +727,11 @@ h2 {
 }
 
 .tree-canvas {
+  position: relative;
   height: 42vh;
   min-height: 330px;
+  max-height: 520px;
+  overflow: hidden;
   background:
     linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
@@ -736,6 +744,13 @@ h2 {
     auto,
     auto,
     auto;
+}
+
+:deep(.x6-graph),
+:deep(.x6-graph-svg),
+:deep(.x6-graph > svg) {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 :deep(.x6-node rect) {
@@ -770,15 +785,9 @@ h2 {
   white-space: pre-wrap;
 }
 
-.representation-view {
-  max-height: 210px;
-  min-height: 150px;
-  color: #dbeafe;
-}
-
 .result-output {
-  max-height: 220px;
-  min-height: 140px;
+  max-height: 300px;
+  min-height: 180px;
   color: #dcfce7;
 }
 
