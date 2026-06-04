@@ -7,6 +7,7 @@ import {
   type CompileResponse,
   type CompileStage,
   type SyntaxGraphNodeDto,
+  type TokenDto,
 } from '@/api/compiler'
 
 interface StageAction {
@@ -14,6 +15,19 @@ interface StageAction {
   label: string
   shortLabel: string
   hint: string
+}
+
+interface LexemeTableEntry {
+  index: number
+  lexeme: string
+  count: number
+  lines: number[]
+}
+
+interface LexemeTable {
+  type: number
+  title: string
+  entries: LexemeTableEntry[]
 }
 
 const stages: StageAction[] = [
@@ -92,6 +106,62 @@ const selectedTokenOutput = computed(() => {
   }
   return result.value.externalTokenOutput || ''
 })
+
+function describeTokenType(type: number) {
+  switch (type) {
+    case 1:
+      return '分隔符 / 符号'
+    case 2:
+      return '保留字'
+    case 3:
+      return '标识符'
+    case 4:
+      return '数字常量'
+    case 5:
+      return '字符常量'
+    default:
+      return '未知'
+  }
+}
+
+const tokenTableTypes = [1, 2, 3, 4, 5]
+
+const lexemeTables = computed<LexemeTable[]>(() => {
+  const tokens = result.value?.tokens ?? []
+  return tokenTableTypes
+    .map((type) => ({
+      type,
+      title: `${describeTokenType(type)}表`,
+      entries: buildLexemeTableEntries(tokens, type),
+    }))
+    .filter((table) => table.entries.length > 0)
+})
+
+function buildLexemeTableEntries(tokens: TokenDto[], type: number) {
+  const entries = new Map<number, LexemeTableEntry>()
+
+  tokens
+    .filter((token) => token.type === type)
+    .forEach((token) => {
+      const entry = entries.get(token.index)
+      if (entry) {
+        entry.count += 1
+        if (!entry.lines.includes(token.line)) {
+          entry.lines.push(token.line)
+        }
+        return
+      }
+
+      entries.set(token.index, {
+        index: token.index,
+        lexeme: token.lexeme,
+        count: 1,
+        lines: [token.line],
+      })
+    })
+
+  return Array.from(entries.values()).sort((left, right) => left.index - right.index)
+}
 
 const resultOutputTitle = computed(() => {
   if (result.value?.stage === 'semantic') {
@@ -459,25 +529,33 @@ watch(
         </div>
 
         <Transition name="slide-up">
-          <div v-if="result?.tokens.length" class="token-table-wrap">
-            <table class="token-table">
-              <thead>
-                <tr>
-                  <th>行</th>
-                  <th>类型</th>
-                  <th>索引</th>
-                  <th>词素</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(token, index) in result.tokens" :key="`${token.line}-${index}`">
-                  <td>{{ token.line }}</td>
-                  <td>{{ token.type }}</td>
-                  <td>{{ token.index }}</td>
-                  <td>{{ token.lexeme }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="lexemeTables.length" class="lexeme-tables-wrap">
+            <div class="lexeme-table-grid">
+              <section v-for="table in lexemeTables" :key="table.type" class="lexeme-table-card">
+                <div class="lexeme-table-head">
+                  <span>{{ table.title }}</span>
+                  <small>type={{ table.type }}</small>
+                </div>
+                <table class="token-table">
+                  <thead>
+                    <tr>
+                      <th>下标</th>
+                      <th>词素</th>
+                      <th>次数</th>
+                      <th>行号</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="entry in table.entries" :key="`${table.type}-${entry.index}`">
+                      <td>{{ entry.index }}</td>
+                      <td>{{ entry.lexeme }}</td>
+                      <td>{{ entry.count }}</td>
+                      <td>{{ entry.lines.join(', ') }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            </div>
           </div>
         </Transition>
       </div>
@@ -790,10 +868,44 @@ h2 {
   color: #dcfce7;
 }
 
-.token-table-wrap {
+.lexeme-tables-wrap {
   max-height: 32vh;
   overflow: auto;
   border-top: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 12px;
+}
+
+.lexeme-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.lexeme-table-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(7, 12, 24, 0.42);
+}
+
+.lexeme-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lexeme-table-head small {
+  flex: 0 0 auto;
+  color: #5eead4;
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .token-table {
