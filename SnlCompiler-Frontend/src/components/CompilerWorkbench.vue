@@ -66,6 +66,9 @@ const result = ref<CompileResponse | null>(null)
 const loadingStage = ref<CompileStage | null>(null)
 const errorMessage = ref('')
 const syntaxGraphContainer = ref<HTMLDivElement | null>(null)
+const sourceEditor = ref<HTMLTextAreaElement | null>(null)
+const lineGutter = ref<HTMLDivElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 let syntaxGraph: Graph | null = null
 let syntaxGraphElement: HTMLDivElement | null = null
 
@@ -75,6 +78,10 @@ const activeStageMeta = computed(() => {
   return stage!
 })
 const sourceLineCount = computed(() => source.value.split(/\r\n|\r|\n/).length)
+const gutterColumnWidth = computed(() => {
+  const digits = String(sourceLineCount.value).length
+  return `${Math.max(2, digits) + 1}ch`
+})
 const tokenCount = computed(() => result.value?.tokens.length ?? 0)
 const errorCount = computed(() => result.value?.errors.length ?? 0)
 const hasSyntaxGraph = computed(() => (result.value?.syntaxGraph?.nodes.length ?? 0) > 0)
@@ -391,6 +398,34 @@ function clearSource() {
   syntaxGraph?.clearCells()
 }
 
+function triggerImport() {
+  fileInputRef.value?.click()
+}
+
+async function onFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) {
+    return
+  }
+
+  try {
+    source.value = await file.text()
+    result.value = null
+    errorMessage.value = ''
+    syntaxGraph?.clearCells()
+  } catch {
+    errorMessage.value = '无法读取文件，请确认文件为 UTF-8 编码的文本。'
+  }
+}
+
+function syncEditorScroll() {
+  if (lineGutter.value && sourceEditor.value) {
+    lineGutter.value.scrollTop = sourceEditor.value.scrollTop
+  }
+}
+
 onMounted(() => {
   registerSyntaxShapes()
   createSyntaxGraph()
@@ -477,20 +512,30 @@ watch(
           </div>
 
           <div class="editor-actions">
+            <input
+              ref="fileInputRef"
+              type="file"
+              class="file-input-hidden"
+              accept=".snl,.txt,text/plain"
+              @change="onFileSelected"
+            />
+            <el-button size="small" @click="triggerImport">导入</el-button>
             <el-button size="small" @click="resetSource">示例</el-button>
             <el-button size="small" @click="clearSource">清空</el-button>
           </div>
         </div>
 
-        <div class="editor-frame">
-          <div class="line-gutter" aria-hidden="true">
+        <div class="editor-frame" :style="{ gridTemplateColumns: `${gutterColumnWidth} 1fr` }">
+          <div ref="lineGutter" class="line-gutter" aria-hidden="true">
             <span v-for="line in sourceLineCount" :key="line">{{ line }}</span>
           </div>
           <textarea
+            ref="sourceEditor"
             v-model="source"
             class="source-editor"
             spellcheck="false"
             aria-label="SNL 源码输入"
+            @scroll="syncEditorScroll"
           />
         </div>
       </div>
@@ -741,27 +786,34 @@ h2 {
   gap: 8px;
 }
 
+.file-input-hidden {
+  display: none;
+}
+
 .editor-frame {
   display: grid;
-  grid-template-columns: 48px 1fr;
   height: calc(100vh - 292px);
   min-height: 420px;
+  overflow: hidden;
 }
 
 .line-gutter {
   overflow: hidden;
-  padding: 16px 10px;
+  padding: 16px 10px 16px 6px;
+  border-right: 1px solid rgba(94, 234, 212, 0.28);
   color: #64748b;
   background: rgba(2, 6, 23, 0.52);
   font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
+  font-variant-numeric: tabular-nums;
   text-align: right;
   user-select: none;
 }
 
 .line-gutter span {
   display: block;
+  min-height: calc(14px * 1.55);
 }
 
 .source-editor {
@@ -770,6 +822,7 @@ h2 {
   height: 100%;
   border: 0;
   resize: none;
+  overflow: auto;
   padding: 16px;
   color: #dbeafe;
   caret-color: #5eead4;
@@ -778,6 +831,7 @@ h2 {
   font-size: 14px;
   line-height: 1.55;
   outline: none;
+  box-sizing: border-box;
 }
 
 .source-editor:focus {
