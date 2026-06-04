@@ -238,39 +238,50 @@ function renderSyntaxGraph() {
 
   syntaxGraph.clearCells()
 
-  syntaxGraph.fromJSON({
-    nodes: graph.nodes.map((node: SyntaxGraphNodeDto) => ({
-      id: node.id,
-      shape: node.shape || 'syntax-node',
-      x: node.x,
-      y: node.y,
-      width: node.width,
-      height: node.height,
-      attrs: {
-        body: {
-          stroke: nodeStroke(node.kind),
-        },
-        label: {
-          text: node.label,
-        },
+  const nodeMetas = graph.nodes.map((node: SyntaxGraphNodeDto) => ({
+    id: node.id,
+    shape: node.shape || 'syntax-node',
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    attrs: {
+      body: {
+        stroke: nodeStroke(node.kind),
       },
-      data: {
-        kind: node.kind,
-        line: node.line,
+      label: {
+        text: node.label,
       },
-    })),
-    edges: graph.edges.map((edge) => ({
-      id: edge.id,
-      shape: edge.shape || 'syntax-edge',
-      source: edge.source,
-      target: edge.target,
-    })),
-  })
+    },
+    data: {
+      kind: node.kind,
+      line: node.line,
+    },
+  }))
 
-  syntaxGraph.centerContent()
-  syntaxGraph.zoomToFit({
-    padding: 34,
-    maxScale: 1,
+  const edgeMetas = graph.edges.map((edge) => ({
+    id: edge.id,
+    shape: edge.shape || 'syntax-edge',
+    source: { cell: edge.source },
+    target: { cell: edge.target },
+    connector: { name: 'rounded' },
+    router: { name: 'normal' },
+  }))
+
+  nodeMetas.forEach((meta) => syntaxGraph!.addNode(meta))
+  edgeMetas.forEach((meta) => syntaxGraph!.addEdge(meta))
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!syntaxGraph) {
+        return
+      }
+      syntaxGraph.centerContent()
+      syntaxGraph.zoomToFit({
+        padding: 40,
+        maxScale: 1,
+      })
+    })
   })
 }
 
@@ -746,13 +757,6 @@ h2 {
     auto;
 }
 
-:deep(.x6-graph),
-:deep(.x6-graph-svg),
-:deep(.x6-graph > svg) {
-  width: 100% !important;
-  height: 100% !important;
-}
-
 :deep(.x6-node rect) {
   transition:
     stroke 0.2s ease,
@@ -764,13 +768,8 @@ h2 {
   filter: drop-shadow(0 0 16px rgba(94, 234, 212, 0.42));
 }
 
-:deep(.x6-node) {
-  animation: node-pop 0.36s ease both;
-}
-
 :deep(.syntax-edge-line) {
-  animation: edge-flow 1.1s linear infinite;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.62));
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.45));
 }
 
 .output-view {
@@ -875,23 +874,6 @@ h2 {
   }
   to {
     transform: translate3d(42px, -28px, 0) scale(1.12);
-  }
-}
-
-@keyframes node-pop {
-  from {
-    opacity: 0;
-    transform: translateY(18px) scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes edge-flow {
-  to {
-    stroke-dashoffset: -32;
   }
 }
 
