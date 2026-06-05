@@ -1,28 +1,39 @@
-﻿# SNL Compiler 项目介绍文档
+# SNL Compiler 项目介绍文档
 
 ## 1. 项目定位
 
-SNL Compiler 是一个面向编译原理课程实验的 SNL（Small Nested Language）编译前端演示项目。项目基于原生 Java 与 Vue 前端工作台实现，聚焦“源程序输入 → 词法分析 → LL(1) 语法分析 → 分析结果展示”的前端编译流程，适合用于课程实验、课堂演示、编译前端原型验证与 SNL 文法学习。
+SNL Compiler 是一个面向编译原理课程实验的 SNL（Small Nested Language）编译器教学项目。当前仓库采用前后端分离结构：后端基于 Spring Boot 提供 HTTP API，前端基于 Vue 3 提供可视化工作台。
 
-项目当前不包含目标代码生成、解释执行、优化器、符号表语义检查或运行时系统，核心目标是清晰展示词法自动机与 LL(1) 预测分析表驱动的语法推导过程。
+项目覆盖的核心流程不再局限于“词法 + LL(1) 语法分析”。按当前实现，系统已经支持：
 
-## 2. 设计初衷
+- 词法分析
+- LL(1) 语法分析
+- 递归下降语法分析
+- 语义分析
+- MIPS 目标代码生成
 
-本项目的设计目标是用尽可能轻量、可读、可演示的方式呈现编译前端关键环节：
+它更适合作为课程实验、课堂演示、SNL 文法学习和编译前端扩展的基础工程，而不是只展示单一分析阶段的极简原型。
 
-- 降低运行门槛：仅依赖 JDK，无需 Maven、Gradle、数据库或 Web 服务。
-- 强化过程可视化：通过 Swing 界面展示 Token 序列、内部表示、语法推导规则与错误信息。
-- 分离界面与核心逻辑：UI 负责输入输出和交互状态，Lexer 与 Parser 承担核心分析职责。
-- 保持课程实验可追踪性：预测分析表、终结符、非终结符和产生式规则集中维护，便于对照教材和实验报告。
+## 2. 设计目标
+
+- 用统一工作台串联词法、语法、语义和代码生成阶段。
+- 保留课程实验可读性，让 `Constants`、`Lexer`、`Parser`、`RecursiveDescentParser` 等核心实现仍便于对照教材。
+- 通过 HTTP API 解耦前后端，降低界面迭代成本。
+- 同时输出 Token、语法树、符号表和 MIPS 文本，强化可视化与可验证性。
 
 ## 3. 核心能力
 
 ### 3.1 词法分析
 
-词法分析由 `com.snl.compiler.core.lexer.Lexer` 提供，核心入口为 `Lexer.doToken(String source)`。它将 SNL 源程序拆分为 Token 序列，并支持两类展示形式：
+词法分析由 `com.snl.compiler.core.lexer.Lexer` 提供，入口为 `Lexer.doToken(String source)`。
 
-- 外部表示：面向使用者阅读，例如 `(2,program)`、`(3,v1)`、`(4,10)`。
-- 内部表示：面向语法分析输入，包含行号、Token 类型编号和符号表下标，例如 `(1,2,0)`。
+当前实现支持：
+
+- Token 外部表示 `(类型,词素)` 与内部表示 `(行号,类型,下标)`
+- 保留字、标识符、整数常量、字符常量识别
+- `:=`、`..`、数组下标、记录相关符号识别
+- `{ ... }` 注释跳过
+- 非法字符、错误赋值符、缺少结束句点等词法错误提示
 
 Token 类型约定如下：
 
@@ -31,229 +42,226 @@ Token 类型约定如下：
 | 1 | 分隔符或运算符 |
 | 2 | 保留字 |
 | 3 | 标识符 |
-| 4 | 数字常量 |
-
-词法分析支持的主要词法元素包括：
-
-- 保留字：`program`、`type`、`var`、`integer`、`char`、`array`、`of`、`procedure`、`begin`、`while`、`do`、`if`、`then`、`else`、`fi`、`endwh`、`end`、`read`、`write`、`return`。
-- 分隔符和运算符：`,`、`;`、`+`、`-`、`*`、`/`、`<`、`=`、`(`、`)`、`[`、`]`、`:=`、`.`、`..`、`:`。
-- 标识符：以英文字母开头，后续可包含英文字母或数字。
-- 数字常量：支持 `0` 或非零数字开头的十进制整数，不允许 `01` 这类前导零形式。
+| 4 | 整数常量 |
+| 5 | 字符常量 |
 
 ### 3.2 LL(1) 语法分析
 
-语法分析由 `com.snl.compiler.core.parser.Parser` 提供，核心入口为 `Parser.doGrammar()`。语法分析依赖词法分析成功后产生的 `Constants.token`，通过 LL(1) 分析表与产生式规则完成预测分析。
+LL(1) 语法分析由 `com.snl.compiler.core.parser.Parser` 提供，入口为 `Parser.doGrammar()`。
 
-主要能力包括：
+当前实现特点：
 
-- 将标识符统一还原为 `ID`，将数字常量统一还原为 `INTC`。
-- 通过栈模拟 LL(1) 推导过程。
-- 输出匹配到终结符前所使用的产生式规则编号。
-- 在无可用规则、终结符不匹配、栈与输入序列不一致等场景输出语法错误信息。
+- 基于 `Constants.analysis` 预测分析表和 `Constants.rule` 产生式集合
+- 将标识符统一映射为 `ID`，整数常量映射为 `INTC`，字符常量映射为 `CHARC`
+- 输出规约过程与中文错误信息
+- 在 LL(1) 分析后，后端还会进一步构建 AST 并生成语法树可视化数据
 
-### 3.3 图形界面交互
+### 3.3 递归下降语法分析
 
-前端界面由 `SnlCompiler-Frontend/src/components/CompilerWorkbench.vue` 提供，后端入口由 `com.snl.compiler.Main` 提供，包含以下区域与功能：
+递归下降分析由 `com.snl.compiler.core.parser.RecursiveDescentParser` 提供。
 
-- 源码输入区：输入或粘贴 SNL 源程序。
-- Token 表示选择：在“外部表示”和“内部表示”之间切换。
-- 词法分析按钮：触发词法分析并刷新输出区。
-- 语法分析按钮：仅在词法分析成功后启用，避免错误状态下继续分析。
-- 帮助按钮：展示 Token 类型说明和语法分析提示。
-- 状态栏：显示当前分析状态。
+当前实现支持：
 
-## 4. 功能边界
+- 程序头、类型声明、变量声明、过程声明
+- 数组类型与 `a[exp]`
+- `record ... end` 记录类型与 `a.field`
+- `if`、`while`、`read`、`write`、`return`
+- 构建 AST，供后续语义分析和代码生成复用
 
-### 4.1 已支持范围
+### 3.4 语义分析
 
-- SNL 源程序的词法切分与 Token 序列生成。
-- 保留字、标识符、整数常量、分隔符、赋值符、数组范围符识别。
-- 程序必须以 `.` 作为词法层面的正常结束标志。
-- LL(1) 预测分析表驱动的语法推导。
-- 词法错误和语法错误的基础提示。
-- 浏览器端可视化操作。
+语义分析由 `com.snl.compiler.core.semantic.SemanticAnalyzer` 提供。
 
-### 4.2 暂不支持范围
+当前实现支持：
 
-- 语义分析、类型检查、作用域检查和符号表语义约束。
-- 中间代码生成、目标代码生成、优化和执行。
-- 命令行批处理入口。
-- 自动化测试框架集成。
-- 文件打开、保存、导入导出等 IDE 类能力。
-- 注释语法、字符串常量、字符字面量细粒度检查等扩展词法能力。
+- 符号表建立与作用域管理
+- 重复定义检查
+- 未声明标识符检查
+- 类型名 / 过程名误用检查
+- 赋值类型兼容性检查
+- 输出符号表文本结果
 
-## 5. 适用场景
+### 3.5 MIPS 目标代码生成
 
-- 编译原理课程中词法分析与语法分析实验。
-- LL(1) 预测分析表工作机制演示。
-- SNL 语言文法学习与手工推导结果校验。
-- 小型 Vue 3 + Element Plus 课程项目结构示例。
-- 对编译前端进行二次开发前的教学原型。
+MIPS 生成由 `com.snl.compiler.application.codegen.MipsCodeGenerator` 提供，经 `CompilerPipeline.codegen(...)` 调用。
 
-不建议将本项目直接用于生产级编译器、完整语言工具链或大规模工程化语言处理场景。
+当前实现可为部分 SNL 程序生成 MIPS 汇编，适合在 MARS 或 QtSpim 中进一步验证。需要注意：
 
-## 6. 技术架构
+- 代码生成依赖递归下降语法分析成功且语义分析无错误
+- 当前对部分复杂结构仍有限制，例如记录域访问存在未完全支持的场景
+- 生成阶段会返回提示信息，而不总是保证完整覆盖全部语法特性
 
-### 6.1 技术栈
+## 4. 前后端结构
+
+### 4.1 后端
+
+后端入口是 `com.snl.compiler.CompilerApplication`，基于 Spring Boot 启动。
+
+HTTP API 入口为 `com.snl.compiler.api.CompilerController`，提供以下接口：
+
+- `POST /api/compile/lexical`
+- `POST /api/compile/grammar`
+- `POST /api/compile/recursive`
+- `POST /api/compile/semantic`
+- `POST /api/compile/codegen`
+
+流程编排集中在 `com.snl.compiler.application.CompilerPipeline`：
+
+- `lexical()` 负责词法分析
+- `grammar()` 负责 LL(1) 分析并补充语法树
+- `recursive()` 负责递归下降与 AST 构建
+- `semantic()` 负责语义检查与符号表输出
+- `codegen()` 负责在语义通过后生成 MIPS
+
+### 4.2 前端
+
+前端主界面位于 `SnlCompiler-Frontend/src/components/CompilerWorkbench.vue`。
+
+当前工作台提供：
+
+- 源码输入区
+- 外部 / 内部 Token 表示切换
+- 阶段选择器：词法、LL(1)、递归下降、语义、MIPS
+- 运行按钮
+- 语法树图形展示
+- 词素表展示
+- 文件导入、示例填充、清空操作
+
+当前界面不是旧版文档里描述的“帮助按钮 + 状态栏 + 多个独立阶段按钮”形态，而是统一阶段切换式工作台。
+
+## 5. 模块结构
+
+### 5.1 后端主要文件
+
+| 路径 | 职责 |
+| --- | --- |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/CompilerApplication.java` | Spring Boot 启动入口 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/api/CompilerController.java` | 编译 HTTP API |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/application/CompilerService.java` | 服务层封装 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/application/CompilerPipeline.java` | 五个编译阶段的统一编排 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/core/lexer/Lexer.java` | 词法分析 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/core/parser/Parser.java` | LL(1) 语法分析 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/core/parser/RecursiveDescentParser.java` | 递归下降语法分析 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/core/semantic/SemanticAnalyzer.java` | 语义分析 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/application/codegen/MipsCodeGenerator.java` | MIPS 代码生成 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/infrastructure/config/Constants.java` | 文法、终结符、预测分析表、共享静态状态 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/domain/token/Token.java` | Token 模型 |
+| `SnlCompiler-Backend/src/main/java/com/snl/compiler/domain/grammar/Rule.java` | 产生式模型 |
+
+### 5.2 前端主要文件
+
+| 路径 | 职责 |
+| --- | --- |
+| `SnlCompiler-Frontend/src/components/CompilerWorkbench.vue` | 主工作台 |
+| `SnlCompiler-Frontend/src/api/compiler.ts` | API 请求与响应类型 |
+
+### 5.3 示例程序
+
+示例 SNL 文件位于：
+
+- `SnlCompiler-Backend/src/main/resources/samples/sample.snl`
+- `SnlCompiler-Backend/src/main/resources/samples/comment_test.snl`
+- `SnlCompiler-Backend/src/main/resources/samples/char_test.snl`
+- `SnlCompiler-Backend/src/main/resources/samples/record_test.snl`
+- `SnlCompiler-Backend/src/main/resources/samples/bubble_sort.snl`
+
+## 6. 运行时数据流
+
+```text
+用户在 CompilerWorkbench 输入或导入 SNL 源码
+  ↓
+前端调用 /api/compile/{stage}
+  ↓
+CompilerController -> CompilerService -> CompilerPipeline
+  ↓
+词法分析：Lexer.doToken(...)
+  ↓
+按阶段进入 LL(1) / 递归下降 / 语义 / MIPS
+  ↓
+返回 Token、错误信息、语法树、符号表或 MIPS 文本
+  ↓
+前端展示结果、语法树图、词素表
+```
+
+## 7. 技术栈与环境要求
 
 | 类别 | 选型 | 说明 |
 | --- | --- | --- |
-| 语言 | Java | 使用标准 JDK API 实现 |
-| UI | Vue 3 + Element Plus | 提供桌面图形界面 |
-| 构建 | javac | 无外部构建工具依赖 |
-| 运行 | JVM | JDK 8 或更高版本 |
-| 测试方式 | javac + java + 可选临时测试类 | 适合轻量课程项目 |
+| 后端语言 | Java 21 | 由 Maven 管理构建 |
+| 后端框架 | Spring Boot 4 | 提供 HTTP API |
+| 前端语言 | TypeScript | Vue 单页应用 |
+| 前端框架 | Vue 3 + Element Plus | 工作台界面 |
+| 图可视化 | AntV X6 | 语法树绘制 |
+| 前端构建 | Vite | 开发与打包 |
+| 后端构建 | Maven | 见 `pom.xml` |
 
-### 6.2 模块结构
+环境建议：
 
-| 路径或包 | 职责 |
-| --- | --- |
-| `src/com/snl/compiler/Main.java` | 后端服务入口，启动 HTTP API 与前端静态资源服务 |
-| `src/com/snl/compiler/core/lexer/Lexer.java` | 词法分析、Token 生成、错误提示 |
-| `src/com/snl/compiler/core/parser/Parser.java` | LL(1) 语法分析、栈式推导、语法错误提示 |
-| `src/com/snl/compiler/infra/config/Constants.java` | 分隔符、保留字、终结符、非终结符、预测分析表、产生式规则和共享状态 |
-| `src/com/snl/compiler/model/Token.java` | Token 内部表示模型 |
-| `src/com/snl/compiler/model/Rule.java` | SNL 产生式规则模型 |
-| `src/TestData.txt` | 示例 SNL 程序，包括简单赋值程序与冒泡排序程序 |
+- JDK 21
+- Node.js 20 或更高版本
+- Windows、macOS、Linux 均可
+- UTF-8 编码
 
-### 6.3 运行时数据流
+## 8. 构建与运行
 
-```text
-用户输入 SNL 源码
-  ↓
-CompilerWorkbench 通过 HTTP 请求提交源码
-  ↓
-Lexer.doToken(source)
-  ↓
-生成 Constants.token、Constants.tokenShow、Constants.tokenShow2
-  ↓
-词法成功后启用语法分析
-  ↓
-Parser.doGrammar()
-  ↓
-读取 Constants.token，结合 Constants.analysis 与 Constants.rule 执行 LL(1) 推导
-  ↓
-CompilerWorkbench 展示 Token 序列、语法推导、AST 与语义分析结果
-```
+### 8.1 后端启动
 
-### 6.4 关键设计约束
-
-- `Constants.initialize()` 必须在词法分析和语法分析前执行，否则保留字、分隔符、预测分析表等静态数据未初始化。
-- 语法分析依赖最近一次成功词法分析产生的 `Constants.token`。
-- `Lexer`、`Parser` 和 `Constants` 使用静态状态，适合单窗口、单任务实验场景，不适合并发分析多个源程序。
-- GUI 中语法分析按钮默认禁用，词法分析成功后才启用，是主要的交互防错机制。
-
-## 7. 环境要求
-
-- 操作系统：Windows、macOS 或 Linux 均可运行，Windows PowerShell 示例最贴合当前项目路径。
-- JDK：JDK 8 或更高版本。
-- 字符编码：建议使用 UTF-8 保存源码与文档，避免中文说明乱码。
-- 图形环境：运行 Vue 前端工作台需要可用桌面环境。
-
-## 8. 部署与运行流程
-
-### 8.1 本地编译
-
-在项目根目录执行：
+在 `SnlCompiler-Backend` 目录执行：
 
 ```powershell
-javac -encoding UTF-8 -d bin (Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { $_.FullName })
+./mvnw spring-boot:run
 ```
 
-参数说明：
-
-- `-encoding UTF-8`：按 UTF-8 读取源码，避免中文字符串在不同系统编码下编译异常。
-- `-d bin`：将编译结果输出到 `bin` 目录。
-- `-sourcepath src`：指定源码根目录。
-- `src/com/snl/compiler/Main.java`：以后端服务入口作为运行入口，`javac` 会按依赖自动编译相关类。
-
-如果当前 JDK 编译时报 `非法字符: '\ufeff'`，说明源码文件带有 UTF-8 BOM，而该 JDK 版本无法识别文件头。处理方式是将相关 Java 源文件另存为“UTF-8 无 BOM”后重新执行编译命令。
-
-### 8.2 本地运行
+或：
 
 ```powershell
-java -cp bin com.snl.compiler.Main 8080 ../SnlCompiler-Frontend/dist
+./mvnw test
+./mvnw package
+java -jar target/compiler-0.0.1-SNAPSHOT.jar
 ```
 
-启动后可将 `src/TestData.txt` 中第一段完整 SNL 程序复制到左侧源码输入区，点击“词法分析”，成功后继续点击“语法分析”。
+### 8.2 前端启动
 
-### 8.3 清理构建产物
+在 `SnlCompiler-Frontend` 目录执行：
 
 ```powershell
-Remove-Item -Recurse -Force bin
+npm install
+npm run dev
 ```
 
-`bin/` 已被 `.gitignore` 忽略，属于本地构建产物，不应提交到版本库。
+默认前端开发地址为 `http://localhost:5173`。API 基础地址由 `VITE_COMPILER_API_BASE_URL` 控制，默认访问同源 `/api/compile/*`。
 
-## 9. 使用流程
+### 8.3 常见使用流程
 
-1. 启动程序后，在左侧源码输入区输入完整 SNL 程序。
-2. 选择 Token 展示方式：外部表示适合人工检查，内部表示适合验证语法分析输入。
-3. 点击“词法分析”。
-4. 检查输出区是否出现“词法分析成功！”。
-5. 词法成功后点击“语法分析”。
-6. 检查输出区是否出现“语法分析成功！”，或根据错误提示定位源程序问题。
+1. 启动后端 API。
+2. 启动前端工作台。
+3. 在源码输入区粘贴或导入 `.snl` 文件。
+4. 选择 Token 视图与分析阶段。
+5. 点击运行按钮。
+6. 查看输出面板中的 Token、错误信息、语法树、符号表或 MIPS 文本。
 
-## 10. 典型输入示例
+## 9. 功能边界
 
-```text
-program p
-type t = integer ;
-var t v1;
-    char v2;
-begin
-read(v1);
-    v1:=v1+10;
-    write(v1)
-end.
-```
+### 9.1 已支持
 
-期望结果：
+- 词法分析，含字符常量与注释
+- LL(1) 语法分析
+- 递归下降语法分析
+- AST 构建与语法树图展示
+- 语义分析与符号表输出
+- 部分 MIPS 目标代码生成
 
-- 词法分析输出包含 `program`、`p`、`integer`、`read`、`write`、`.` 等 Token。
-- 词法分析末尾显示“词法分析成功！”。
-- 语法分析末尾显示“语法分析成功！”。
+### 9.2 仍有限制
 
-## 11. 错误处理策略
+- MIPS 后端未完整覆盖全部复杂 SNL 场景
+- 错误恢复机制较弱，更多是失败即终止
+- `Constants`、`Lexer`、`Parser` 仍保留静态共享状态，不适合高并发服务场景
+- 缺少更系统的自动化测试与覆盖率报告
 
-| 错误类型 | 示例 | 预期表现 |
-| --- | --- | --- |
-| 非法字符 | `program p#` | 词法分析失败，提示无法识别相关片段 |
-| 错误赋值符 | `a:1` | 词法分析失败，提示 `:` 后应该接 `=` |
-| 程序未正常结束 | 缺少末尾 `.` | 词法分析失败，提示程序未能正常结束 |
-| 语法结构缺失 | 缺少 `end` | 语法分析失败，提示无可用规则或终结符匹配错误 |
-| 输入序列与栈不一致 | 多余 Token 或提前结束 | 语法分析失败，提示栈与 Token 序列状态不一致 |
+## 10. 扩展方向
 
-## 12. 贡献规范
-
-### 12.1 分支与提交建议
-
-- 每次变更聚焦一个目标，例如“修复词法错误提示”或“扩展测试样例”。
-- 提交前至少执行一次完整编译。
-- 涉及词法或语法逻辑时，同步补充可复现测试样例。
-- 不提交 `bin/`、`.class`、IDE 配置、临时日志和本地缓存。
-
-### 12.2 代码风格
-
-- 保持现有 Java 包结构和命名方式。
-- 前端交互逻辑放在 Vue 工作台，后端编译逻辑放在 `core`、`service` 和 `controller` 包。
-- 静态文法配置、分析表、终结符和非终结符优先集中在 `Constants` 中维护。
-- 新增公共模型时放入 `model` 包。
-- 避免在核心分析逻辑中直接依赖 Swing 组件，保证核心模块可被测试类直接调用。
-
-### 12.3 测试要求
-
-- 词法分析变更必须覆盖成功 Token、非法字符、错误赋值符、数字常量边界和未正常结束场景。
-- 语法分析变更必须覆盖完整合法程序、缺失关键字、终结符不匹配和 Token 序列提前结束场景。
-- 前端变更至少验证阶段按钮、输出面板、Token 表格和 API 错误提示。
-- 核心代码覆盖率目标不低于 90%，重点统计 `Lexer`、`Parser`、`Constants` 初始化路径和模型类。
-
-## 13. 扩展方向
-
-- 增加命令行入口，支持 `java ... input.snl` 批处理分析。
-- 引入 JUnit，沉淀自动化测试套件和覆盖率报告。
-- 将 `Constants` 中的文法规则与预测分析表外置为配置文件，提升可维护性。
-- 增加语义分析、符号表、类型检查和错误恢复机制。
-- 增加文件打开、保存、示例加载和分析结果导出功能。
-
-
+- 为当前 API 增加系统化后端测试与前端集成测试
+- 降低 `Constants` 静态状态对流程编排的耦合
+- 为 MIPS 后端补齐 record、复杂过程调用等场景
+- 为语义分析增加更完整的类型系统与错误恢复
+- 增加样例管理、结果导出和更细粒度的诊断展示
