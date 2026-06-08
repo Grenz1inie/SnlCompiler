@@ -12,6 +12,9 @@ public class CompileResponse {
     public String grammarOutput;
     public String astOutput;
     public String symbolTableOutput;
+    public String irOutput;
+    public String irOptimizedOutput;
+    public String mipsRawOutput;
     public String mipsOutput;
     public List<String> errors = new ArrayList<String>();
     public List<TokenDto> tokens = new ArrayList<TokenDto>();

@@ -161,23 +161,32 @@ class CompilerPipeline {
             return response;
         }
 
-        String mips = mipsCodeGenerator.generate(context.astRoot);
-        response.mipsOutput = mips;
+        com.snl.compiler.application.codegen.CodeGenResult codegen = mipsCodeGenerator.generateAll(context.astRoot);
+        response.irOutput = codegen.irOutput;
+        response.irOptimizedOutput = codegen.irOptimizedOutput;
+        response.mipsRawOutput = codegen.mipsRawOutput;
+        response.mipsOutput = codegen.mipsOutput;
         response.success = true;
-        response.output = renderCodegenOutput(mips, mipsCodeGenerator.getErrors());
+        response.output = renderCodegenOutput(codegen);
         return response;
     }
 
-    private String renderCodegenOutput(String mips, List<String> codegenErrors) {
+    private String renderCodegenOutput(com.snl.compiler.application.codegen.CodeGenResult codegen) {
         StringBuilder output = new StringBuilder();
-        output.append("--- MIPS 目标代码 ---\n");
-        if (codegenErrors.isEmpty()) {
-            output.append("代码生成成功。可在 MARS/QtSpim 中汇编运行。\n\n");
+        if (codegen.errors.isEmpty()) {
+            output.append("代码生成成功（中间代码 → IR 优化 → MIPS → 窥孔优化）。\n\n");
         } else {
             output.append("代码生成完成，但存在提示：\n");
-            output.append(join(codegenErrors)).append("\n\n");
+            output.append(join(codegen.errors)).append("\n\n");
         }
-        output.append(mips);
+        output.append("--- 中间代码（优化前）---\n");
+        output.append(codegen.irOutput).append("\n");
+        output.append("--- 中间代码（优化后）---\n");
+        output.append(codegen.irOptimizedOutput).append("\n");
+        output.append("--- MIPS 目标代码（IR 翻译）---\n");
+        output.append(codegen.mipsRawOutput).append("\n");
+        output.append("--- MIPS 目标代码（窥孔优化后）---\n");
+        output.append(codegen.mipsOutput);
         return output.toString();
     }
 

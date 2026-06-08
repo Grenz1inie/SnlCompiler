@@ -49,7 +49,7 @@ const stages: StageAction[] = [
     id: 'codegen',
     label: 'MIPS 代码生成',
     shortLabel: 'MIPS',
-    hint: '语义通过后生成 MIPS 汇编，可复制到 MARS/QtSpim 运行',
+    hint: '生成四元式中间代码、IR 优化与 MIPS 目标代码（含窥孔优化）',
   },
 ]
 
@@ -181,7 +181,7 @@ const resultOutputTitle = computed(() => {
     return '语义分析结果'
   }
   if (result.value?.stage === 'codegen') {
-    return 'MIPS 目标代码'
+    return '中间代码与 MIPS 目标代码'
   }
   if (result.value?.stage === 'lexical') {
     return tokenView.value === 'internal' ? '内部表示' : '外部表示'

@@ -55,6 +55,9 @@ export interface CompileResponse {
   grammarOutput: string | null
   astOutput: string | null
   symbolTableOutput: string | null
+  irOutput: string | null
+  irOptimizedOutput: string | null
+  mipsRawOutput: string | null
   mipsOutput: string | null
   errors: string[]
   tokens: TokenDto[]
