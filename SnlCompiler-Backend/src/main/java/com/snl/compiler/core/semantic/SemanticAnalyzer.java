@@ -11,8 +11,17 @@ import com.snl.compiler.domain.symbol.Symbol;
 import com.snl.compiler.domain.symbol.Symbol.SymbolKind;
 import com.snl.compiler.domain.symbol.SymbolTable;
 
+/**
+ * 语义分析器：遍历递归下降生成的 AST，建立符号表并检查语义错误。
+ * <p>
+ * 主要检查：重复定义、未声明标识符、赋值/运算类型兼容、条件表达式类型、过程调用等。
+ * 分析通过后，符号表与 AST 供 {@link com.snl.compiler.application.codegen.IrGenerator} 生成中间代码。
+ */
 public class SemanticAnalyzer {
+
+    /** 全局符号表（含作用域栈） */
     private SymbolTable symbolTable;
+    /** 语义错误信息列表 */
     private List<String> errors;
 
     public SemanticAnalyzer() {
@@ -20,6 +29,7 @@ public class SemanticAnalyzer {
         this.errors = new ArrayList<>();
     }
 
+    /** 语义分析入口：从 AST 根节点开始深度优先遍历 */
     public void analyze(BaseASTNode root) {
         if (root == null) {
             return;
@@ -35,6 +45,10 @@ public class SemanticAnalyzer {
         return symbolTable;
     }
 
+    /**
+     * 按节点类型分发处理：ProK 遍历子树，TypeK/VarK/ProcDecK 建符号，
+     * StmK 检查语句语义，ExpK 推导表达式类型。
+     */
     private void traverse(BaseASTNode node) {
         if (node == null) {
             return;
@@ -102,6 +116,7 @@ public class SemanticAnalyzer {
         return "unknown";
     }
 
+    /** 处理类型声明：将类型名插入符号表，检查重复定义 */
     private void handleTypeDec(BaseASTNode node) {
         for (String name : node.name) {
             Symbol s = new Symbol(name, SymbolKind.TypeK);
@@ -117,6 +132,7 @@ public class SemanticAnalyzer {
         }
     }
 
+    /** 处理变量声明：解析类型并登记每个标识符 */
     private void handleVarDec(BaseASTNode node) {
         String typeName = resolveTypeName(node.child[0]);
         for (String name : node.name) {
@@ -147,6 +163,7 @@ public class SemanticAnalyzer {
         symbolTable.exitScope();
     }
 
+    /** 处理语句：赋值类型检查、if/while 条件类型、read/write/call 合法性 */
     private void handleStm(BaseASTNode node) {
         if (node.stmKind == null) {
             return;
@@ -227,6 +244,7 @@ public class SemanticAnalyzer {
         evalExpType(node);
     }
 
+    /** 推导表达式类型（integer/char/boolean），并报告未声明或类型错误 */
     private ExpType evalExpType(BaseASTNode node) {
         if (node == null) {
             return ExpType.Void;

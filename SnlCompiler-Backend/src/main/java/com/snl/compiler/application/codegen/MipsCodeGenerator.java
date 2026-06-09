@@ -5,6 +5,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * 目标代码生成编排器：AST → IR → IR优化 → MIPS → 窥孔优化。
+ * 输出四段文本：优化前 IR、优化后 IR、MIPS 直译、MIPS 窥孔后。
+ */
 @Component
 public class MipsCodeGenerator {
     private final IrGenerator irGenerator;
@@ -24,11 +28,12 @@ public class MipsCodeGenerator {
         this.peepholeOptimizer = peepholeOptimizer;
     }
 
+    /** 完整代码生成流水线入口（语义分析通过后由 CompilerPipeline 调用） */
     public CodeGenResult generateAll(BaseASTNode root) {
-        IrProgram ir = irGenerator.generate(root);
-        IrProgram optimized = irOptimizer.optimize(ir);
-        String mipsRaw = mipsEmitter.emit(optimized);
-        String mipsOpt = peepholeOptimizer.optimize(mipsRaw);
+        IrProgram ir = irGenerator.generate(root);           // AST → 四元式 IR
+        IrProgram optimized = irOptimizer.optimize(ir);      // 常量折叠等四遍优化
+        String mipsRaw = mipsEmitter.emit(optimized);        // IR → MIPS 汇编
+        String mipsOpt = peepholeOptimizer.optimize(mipsRaw); // 窥孔优化
 
         CodeGenResult result = new CodeGenResult();
         result.irOutput = ir.format();

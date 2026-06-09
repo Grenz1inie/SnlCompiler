@@ -10,11 +10,16 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 中间代码生成器：遍历语义分析后的 AST，生成四元式 IR。
+ * 处理声明、赋值、读写、过程调用及表达式（按 relExp/exp/term/factor 分层）。
+ */
 @Component
 public class IrGenerator {
     private final CodegenSymbols symbols = new CodegenSymbols();
     private IrProgram program;
 
+    /** 从程序根节点 ProK 生成 main 过程及全局数据区的 IR */
     IrProgram generate(BaseASTNode root) {
         symbols.reset();
         program = new IrProgram();

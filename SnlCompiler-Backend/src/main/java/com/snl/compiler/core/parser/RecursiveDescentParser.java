@@ -14,11 +14,26 @@ import com.snl.compiler.core.lexer.Lexer;
 import com.snl.compiler.infrastructure.config.Constants;
 import com.snl.compiler.domain.token.Token;
 
+/**
+ * 递归下降语法分析器：每个非终结符对应一个方法，边读 Token 边构建 AST。
+ * <p>
+ * 与 LL(1) 分析器 {@link com.snl.compiler.core.parser.Parser} 共用
+ * {@link Constants#token}，但本类输出 {@link BaseASTNode} 语法树供语义分析使用。
+ * <p>
+ * 文法结构对应关系示例：
+ * program → programHead + declarePart + programBody + '.'
+ * exp → term {( '+' | '-' ) term}
+ */
 public class RecursiveDescentParser {
+
+    /** 当前读到第几个 Token（下标） */
     private int currentIndex = 0;
+    /** 当前向前看 Token */
     private Token currentToken;
+    /** 语法错误信息列表 */
     private List<String> errors = new ArrayList<>();
 
+    /** 分析入口：从 Program 开始，返回 AST 根节点 */
     public BaseASTNode parse() {
         currentIndex = 0;
         errors.clear();
@@ -34,6 +49,7 @@ public class RecursiveDescentParser {
         return errors;
     }
 
+    /** 向前读一个 Token */
     private void nextToken() {
         if (currentIndex < Constants.token.size()) {
             currentToken = Constants.token.get(currentIndex++);
@@ -42,6 +58,10 @@ public class RecursiveDescentParser {
         }
     }
 
+    /**
+     * 将 Token 还原为语法层终结符名称。
+     * 标识符/常量统一为 ID、INTC、CHARC，与 LL(1) 分析表列名一致。
+     */
     private String getLexeme(Token t) {
         if (t == null) return "";
         switch (t.i) {
@@ -54,6 +74,7 @@ public class RecursiveDescentParser {
         }
     }
 
+    /** 获取 Token 的真实词素文本（如具体标识符名 p、v1，整数值 10） */
     private String getRealLexeme(Token t) {
         if (t == null) return "";
         switch (t.i) {
@@ -66,6 +87,7 @@ public class RecursiveDescentParser {
         }
     }
 
+    /** 期望当前 Token 为 expected，匹配成功则消费并返回 true */
     private boolean match(String expected) {
         if (currentToken != null && getLexeme(currentToken).equals(expected)) {
             nextToken();
@@ -73,10 +95,12 @@ public class RecursiveDescentParser {
         }
         String found = currentToken != null ? getLexeme(currentToken) : "EOF";
         errors.add("Line " + (currentToken != null ? currentToken.l : "unknown") + ": Expected " + expected + " but found " + found);
-        // Try to recover by skipping? No, let's just fail for now.
         return false;
     }
 
+    // ==================== 程序结构 ====================
+
+    /** 非终结符 Program：程序头 + 声明部 + 语句体 + '.' */
     private BaseASTNode program() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.ProK;
@@ -90,6 +114,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 非终结符 ProgramHead：program ID */
     private BaseASTNode programHead() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.PheadK;
@@ -102,6 +127,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 将声明节点 node 挂到链表 head 尾部（sibling 串联） */
     private BaseASTNode linkDecl(BaseASTNode head, BaseASTNode node) {
         if (node == null) {
             return head;
@@ -117,6 +143,9 @@ public class RecursiveDescentParser {
         return head;
     }
 
+    // ==================== 声明部分（类型 / 变量 / 过程） ====================
+
+    /** 非终结符 DeclarePart：TypeDec + VarDec + ProcDec */
     private BaseASTNode declarePart() {
         BaseASTNode typeDec = typeDecPart();
         BaseASTNode varDec = varDecPart();
@@ -377,6 +406,9 @@ public class RecursiveDescentParser {
         return programBody();
     }
 
+    // ==================== 语句部分 ====================
+
+    /** 非终结符 ProgramBody：begin StmList end */
     private BaseASTNode programBody() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.StmK;
@@ -405,6 +437,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 非终结符 Stm：if / while / read / write / return / 赋值 / 过程调用 */
     private BaseASTNode stm() {
         BaseASTNode node = new BaseASTNode();
         node.lineno = currentToken != null ? currentToken.l : 0;
@@ -477,6 +510,9 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    // ==================== 表达式部分（优先级：relExp > exp > term > factor） ====================
+
+    /** 非终结符 RelExp：Exp [ CmpOp Exp ] */
     private BaseASTNode relExp() {
         BaseASTNode node = exp();
         if (currentToken != null && (getLexeme(currentToken).equals("<") || getLexeme(currentToken).equals("="))) {
@@ -493,6 +529,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 非终结符 Exp：Term { ( '+' | '-' ) Term } */
     private BaseASTNode exp() {
         BaseASTNode node = term();
         while (currentToken != null && (getLexeme(currentToken).equals("+") || getLexeme(currentToken).equals("-"))) {
@@ -509,6 +546,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 非终结符 Term：Factor { ( '*' | '/' ) Factor } */
     private BaseASTNode term() {
         BaseASTNode node = factor();
         while (currentToken != null && (getLexeme(currentToken).equals("*") || getLexeme(currentToken).equals("/"))) {
@@ -575,6 +613,7 @@ public class RecursiveDescentParser {
         return current;
     }
 
+    /** 非终结符 Factor：'(' Exp ')' | INTC | CHARC | Variable */
     private BaseASTNode factor() {
         BaseASTNode node = new BaseASTNode();
         node.lineno = currentToken != null ? currentToken.l : 0;
@@ -613,4 +652,3 @@ public class RecursiveDescentParser {
         return null;
     }
 }
-

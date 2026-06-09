@@ -9,8 +9,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 中间代码优化器，对 {@link IrGenerator} 生成的四元式依次做：
+ * <ol>
+ *   <li>常量折叠 — 如 {@code 1+2+10 → const 13}</li>
+ *   <li>代数化简 — 如 {@code x+0}、{@code x*1}、{@code x-0}</li>
+ *   <li>复制传播 — 临时变量别名替换到后续指令操作数</li>
+ *   <li>死代码消除 — 删除未被使用的临时 {@code const} 等指令</li>
+ * </ol>
+ * 演示程序见 {@code samples/opt_demo.snl}。
+ */
 @Component
 public class IrOptimizer {
+
+    /** 依次执行四遍优化，返回新 IR 副本，不修改原程序 */
     IrProgram optimize(IrProgram source) {
         IrProgram program = source.copyProgram();
         foldConstants(program);
@@ -20,6 +32,7 @@ public class IrOptimizer {
         return program;
     }
 
+    /** 常量折叠：两个整型操作数可求值时，直接生成 {@code const} 结果 */
     private void foldConstants(IrProgram program) {
         Map<String, String> constMap = new HashMap<String, String>();
         List<IrInstruction> out = new ArrayList<IrInstruction>();
@@ -53,6 +66,7 @@ public class IrOptimizer {
         program.instructions.addAll(out);
     }
 
+    /** 代数化简：{@code x+0}、{@code x*1} 等恒等变换 */
     private void simplifyAlgebra(IrProgram program) {
         Map<String, String> constMap = new HashMap<String, String>();
         List<IrInstruction> out = new ArrayList<IrInstruction>();
@@ -86,6 +100,7 @@ public class IrOptimizer {
         program.instructions.addAll(out);
     }
 
+    /** 复制传播：将 {@code const}/别名临时变量的值替换到后续指令 */
     private void propagateCopies(IrProgram program) {
         Map<String, String> alias = new HashMap<String, String>();
         List<IrInstruction> out = new ArrayList<IrInstruction>();
@@ -112,6 +127,7 @@ public class IrOptimizer {
         program.instructions.addAll(out);
     }
 
+    /** 死代码消除：删除结果临时变量未被使用的 {@code const}/{@code binop} 等 */
     private void removeDeadTemps(IrProgram program) {
         Set<String> used = new HashSet<String>();
         for (IrInstruction ins : program.instructions) {

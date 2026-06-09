@@ -5,8 +5,14 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * MIPS 窥孔优化：在已生成的汇编上做局部模式替换。
+ * 当前规则：删除跳到下一条指令的冗余 j；add ..., $zero → move。
+ */
 @Component
 public class MipsPeepholeOptimizer {
+
+    /** 逐行扫描 MIPS 文本并应用窥孔规则 */
     String optimize(String mips) {
         if (mips == null || mips.length() == 0) {
             return mips;

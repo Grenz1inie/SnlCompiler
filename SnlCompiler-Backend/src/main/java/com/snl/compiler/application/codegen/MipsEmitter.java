@@ -5,12 +5,18 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 将优化后的四元式 IR 翻译为 MIPS 汇编（.data + .text）。
+ * IR 临时变量 t0、t1… 映射到 $t0–$t7，变量名直接作为内存标签。
+ */
 @Component
 public class MipsEmitter {
+    /** IR 临时变量 → MIPS 寄存器 的映射表 */
     private final Map<String, String> tempToReg = new HashMap<String, String>();
     private int regCounter;
     private int paramIndex;
 
+    /** 遍历 IR 指令列表，输出完整 MIPS 程序文本 */
     String emit(IrProgram program) {
         tempToReg.clear();
         regCounter = 0;
