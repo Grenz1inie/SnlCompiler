@@ -1,7 +1,13 @@
 program test
-var integer a,b,c,d,x,y;
+var integer a,b,c,d;
 
 begin
-    x:=(a+b)*(c-d);
-    y:=(a+b)+(c-d)
+    {常量折叠}
+    a:=3+4;
+
+    {代数化简}
+    b:=a+0;
+    c:=b*1;
+
+    write(a);
 end.
