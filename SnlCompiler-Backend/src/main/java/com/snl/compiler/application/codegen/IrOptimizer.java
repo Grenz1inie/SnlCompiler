@@ -67,11 +67,11 @@ public class IrOptimizer {
                 String right = resolve(constMap, ins.arg2);
                 String simplified = simplifyBinop(ins.op, left, right);
                 if (simplified != null) {
-                    if (simplified.equals(left)) {
-                        constMap.put(ins.result, left);
-                        out.add(IrInstruction.constVal(ins.result, left));
-                    } else {
+                    if (isInt(simplified)) {
                         out.add(IrInstruction.constVal(ins.result, simplified));
+                        constMap.put(ins.result, simplified);
+                    } else {
+                        // x+0、x*1 等：结果复用已有操作数，不能生成 (const, tX, ...) 伪常量
                         constMap.put(ins.result, simplified);
                     }
                     continue;
@@ -92,7 +92,9 @@ public class IrOptimizer {
         for (IrInstruction ins : program.instructions) {
             if (ins.kind == IrInstruction.Kind.CONST) {
                 alias.put(ins.result, ins.arg1);
-                out.add(ins);
+                if (isInt(ins.arg1)) {
+                    out.add(ins);
+                }
                 continue;
             }
             if (ins.kind == IrInstruction.Kind.LOAD) {
@@ -165,6 +167,9 @@ public class IrOptimizer {
         IrInstruction copy = ins.copy();
         copy.arg1 = resolve(constMap, copy.arg1);
         copy.arg2 = resolve(constMap, copy.arg2);
+        if (ins.kind == IrInstruction.Kind.STORE || ins.kind == IrInstruction.Kind.STORE_IDX) {
+            copy.result = resolve(constMap, copy.result);
+        }
         return copy;
     }
 

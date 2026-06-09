@@ -47,7 +47,11 @@ public class MipsEmitter {
     private void emitInstruction(IrInstruction ins, StringBuilder text, IrProgram program) {
         switch (ins.kind) {
             case CONST:
-                emitLine(text, "li " + regOf(ins.result) + ", " + ins.arg1);
+                if (isInt(ins.arg1)) {
+                    emitLine(text, "li " + regOf(ins.result) + ", " + ins.arg1);
+                } else {
+                    emitLine(text, "move " + regOf(ins.result) + ", " + materialize(ins.arg1, text));
+                }
                 break;
             case LOAD:
                 emitLoad(text, ins.result, ins.arg1, program);
