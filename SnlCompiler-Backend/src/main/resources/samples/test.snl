@@ -1,0 +1,7 @@
+program test
+var integer a,b,c,d,x,y;
+
+begin
+    x:=(a+b)*(c-d);
+    y:=(a+b)+(c-d)
+end.
