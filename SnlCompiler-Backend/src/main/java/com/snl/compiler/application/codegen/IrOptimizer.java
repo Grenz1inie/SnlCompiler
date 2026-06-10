@@ -22,7 +22,14 @@ import java.util.Set;
 @Component
 public class IrOptimizer {
 
-    /** 依次执行四遍优化，返回新 IR 副本，不修改原程序 */
+    /**
+     * 步骤 1：优化入口。
+     * 1. 复制一份 IR，避免修改原始结果。
+     * 2. 执行常量折叠。
+     * 3. 执行代数化简。
+     * 4. 执行复制传播。
+     * 5. 执行死代码消除。
+     */
     IrProgram optimize(IrProgram source) {
         IrProgram program = source.copyProgram();
         foldConstants(program);

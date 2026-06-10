@@ -23,8 +23,17 @@ import com.snl.compiler.domain.token.Token;
  * 文法结构对应关系示例：
  * program → programHead + declarePart + programBody + '.'
  * exp → term {( '+' | '-' ) term}
+ * <p>
+ * 解析顺序：
+ * 1. parse() 重置状态，读取第一个 Token，进入 program()。
+ * 2. program() 解析程序头、声明部、语句体和结束符 '.'。
+ * 3. declarePart() 解析类型声明、变量声明、过程声明。
+ * 4. programBody() / stmList() / stm() 解析复合语句和普通语句。
+ * 5. relExp() / exp() / term() / factor() / variable() 解析表达式与变量。
  */
 public class RecursiveDescentParser {
+
+    // ==================== 1. 入口与公共工具 ====================
 
     /** 当前读到第几个 Token（下标） */
     private int currentIndex = 0;
@@ -33,7 +42,13 @@ public class RecursiveDescentParser {
     /** 语法错误信息列表 */
     private List<String> errors = new ArrayList<>();
 
-    /** 分析入口：从 Program 开始，返回 AST 根节点 */
+    /**
+     * 步骤 1：分析入口。
+     * - 清空历史状态
+     * - 检查 token 是否为空
+     * - 预读第一个 token
+     * - 从 program() 开始构建 AST 根节点
+     */
     public BaseASTNode parse() {
         currentIndex = 0;
         errors.clear();
@@ -45,11 +60,15 @@ public class RecursiveDescentParser {
         return program();
     }
 
+    /** 返回本次语法分析收集到的错误信息。 */
     public List<String> getErrors() {
         return errors;
     }
 
-    /** 向前读一个 Token */
+    /**
+     * 步骤 2.1：向前读一个 Token。
+     * currentIndex 始终指向“下一个待读取”的位置。
+     */
     private void nextToken() {
         if (currentIndex < Constants.token.size()) {
             currentToken = Constants.token.get(currentIndex++);
@@ -59,8 +78,10 @@ public class RecursiveDescentParser {
     }
 
     /**
-     * 将 Token 还原为语法层终结符名称。
-     * 标识符/常量统一为 ID、INTC、CHARC，与 LL(1) 分析表列名一致。
+     * 步骤 2.2：将 Token 还原为语法层终结符名称。
+     * - 标识符/常量统一为 ID、INTC、CHARC
+     * - 分隔符和保留字按词法表下标还原
+     * 这样可以直接和语法层的终结符命名对齐。
      */
     private String getLexeme(Token t) {
         if (t == null) return "";
@@ -74,7 +95,10 @@ public class RecursiveDescentParser {
         }
     }
 
-    /** 获取 Token 的真实词素文本（如具体标识符名 p、v1，整数值 10） */
+    /**
+     * 步骤 2.3：获取 Token 的真实词素文本。
+     * 用于 AST 节点、符号表和错误提示中保留原始名字，而不是语法层归一化名称。
+     */
     private String getRealLexeme(Token t) {
         if (t == null) return "";
         switch (t.i) {
@@ -87,7 +111,10 @@ public class RecursiveDescentParser {
         }
     }
 
-    /** 期望当前 Token 为 expected，匹配成功则消费并返回 true */
+    /**
+     * 步骤 2.4：匹配并消费当前 token。
+     * 匹配成功则前进一格；失败则记录带行号的错误信息。
+     */
     private boolean match(String expected) {
         if (currentToken != null && getLexeme(currentToken).equals(expected)) {
             nextToken();
@@ -98,9 +125,12 @@ public class RecursiveDescentParser {
         return false;
     }
 
-    // ==================== 程序结构 ====================
+    // ==================== 2. 程序结构 ====================
 
-    /** 非终结符 Program：程序头 + 声明部 + 语句体 + '.' */
+    /**
+     * 步骤 3：Program -> programHead declarePart programBody '.'
+     * 这是整个 SNL 程序的根非终结符。
+     */
     private BaseASTNode program() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.ProK;
@@ -114,7 +144,10 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    /** 非终结符 ProgramHead：program ID */
+    /**
+     * 步骤 3.1：ProgramHead -> program ID
+     * 记录程序名到 AST 的 ProK 节点。
+     */
     private BaseASTNode programHead() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.PheadK;
@@ -127,7 +160,10 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    /** 将声明节点 node 挂到链表 head 尾部（sibling 串联） */
+    /**
+     * 工具方法：把一个声明节点接到 sibling 链表尾部。
+     * 用于把 type / var / proc 声明串成一个声明序列。
+     */
     private BaseASTNode linkDecl(BaseASTNode head, BaseASTNode node) {
         if (node == null) {
             return head;
@@ -143,9 +179,12 @@ public class RecursiveDescentParser {
         return head;
     }
 
-    // ==================== 声明部分（类型 / 变量 / 过程） ====================
+    // ==================== 3. 声明部分（类型 / 变量 / 过程） ====================
 
-    /** 非终结符 DeclarePart：TypeDec + VarDec + ProcDec */
+    /**
+     * 步骤 4：DeclarePart -> TypeDec VarDec ProcDec
+     * 注意：三类声明在这里按顺序尝试解析，缺省分支返回 null。
+     */
     private BaseASTNode declarePart() {
         BaseASTNode typeDec = typeDecPart();
         BaseASTNode varDec = varDecPart();
@@ -154,6 +193,7 @@ public class RecursiveDescentParser {
         return linkDecl(decls, procDec);
     }
 
+    /** 解析可选的 type 声明部分。 */
     private BaseASTNode typeDecPart() {
         if (currentToken != null && getLexeme(currentToken).equals("type")) {
             nextToken();
@@ -162,6 +202,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析一个或多个类型定义：ID = TypeDef ; ... */
     private BaseASTNode typeDecList() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.TypeK;
@@ -178,6 +219,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 继续解析后续类型定义。 */
     private BaseASTNode typeDecMore() {
         if (currentToken != null && getLexeme(currentToken).equals("ID")) {
             return typeDecList();
@@ -185,6 +227,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析类型定义右部：基本类型、数组类型、记录类型或别名类型。 */
     private BaseASTNode typeDef() {
         BaseASTNode node = new BaseASTNode();
         node.lineno = currentToken != null ? currentToken.l : 0;
@@ -204,12 +247,14 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 类型定义分支：array 或 record。 */
     private BaseASTNode structureType() {
         String lexeme = getLexeme(currentToken);
         if (lexeme.equals("array")) return arrayType();
         else return recordType();
     }
 
+    /** 解析数组类型：array [ low .. high ] of baseType */
     private BaseASTNode arrayType() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.TypeK;
@@ -232,6 +277,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析基础类型：integer / char。 */
     private BaseASTNode baseType() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.TypeK;
@@ -247,6 +293,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析记录类型：record fieldDecList end。 */
     private BaseASTNode recordType() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.TypeK;
@@ -258,6 +305,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析记录字段声明：基础类型/数组类型 + 标识符列表 + ';'。 */
     private BaseASTNode fieldDecList() {
         if (currentToken == null) {
             return null;
@@ -280,6 +328,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 继续解析后续字段声明。 */
     private BaseASTNode fieldDecMore() {
         if (currentToken != null && (getLexeme(currentToken).equals("integer")
                 || getLexeme(currentToken).equals("char")
@@ -289,6 +338,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析可选的变量声明部分。 */
     private BaseASTNode varDecPart() {
         if (currentToken != null && getLexeme(currentToken).equals("var")) {
             nextToken();
@@ -297,6 +347,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析变量声明：TypeDef idList ; ... */
     private BaseASTNode varDecList() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.VarK;
@@ -308,6 +359,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析逗号分隔的标识符列表。 */
     private List<String> idList() {
         List<String> ids = new ArrayList<>();
         if (currentToken != null && getLexeme(currentToken).equals("ID")) {
@@ -324,6 +376,7 @@ public class RecursiveDescentParser {
         return ids;
     }
 
+    /** 继续解析后续变量声明。 */
     private BaseASTNode varDecMore() {
         if (currentToken != null && (getLexeme(currentToken).equals("integer") || 
             getLexeme(currentToken).equals("char") || 
@@ -335,6 +388,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析可选的过程声明部分。 */
     private BaseASTNode procDecPart() {
         if (currentToken != null && getLexeme(currentToken).equals("procedure")) {
             return procDec();
@@ -342,6 +396,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析单个过程定义。 */
     private BaseASTNode procDec() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.ProcDecK;
@@ -361,6 +416,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析过程参数列表，允许为空。 */
     private BaseASTNode paramList() {
         if (currentToken != null && (getLexeme(currentToken).equals("var") || 
             getLexeme(currentToken).equals("integer") || 
@@ -373,6 +429,7 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 解析多个参数声明，参数之间用 ';' 分隔。 */
     private BaseASTNode paramDecList() {
         BaseASTNode node = param();
         if (currentToken != null && getLexeme(currentToken).equals(";")) {
@@ -382,19 +439,21 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析一个参数：可选 var + TypeDef + idList。 */
     private BaseASTNode param() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.VarK;
         node.lineno = currentToken != null ? currentToken.l : 0;
         if (currentToken != null && getLexeme(currentToken).equals("var")) {
             nextToken();
-            // Could add a flag for VAR params
+            // 这里可扩展成“引用传递参数”标记；当前 AST 仅记录语法结构。
         }
         node.child[0] = typeDef();
         node.name.addAll(idList());
         return node;
     }
 
+    /** 继续解析后续过程声明。 */
     private BaseASTNode procDecMore() {
         if (currentToken != null && getLexeme(currentToken).equals("procedure")) {
             return procDec();
@@ -402,13 +461,17 @@ public class RecursiveDescentParser {
         return null;
     }
 
+    /** 过程体与普通语句体共用同一个 begin...end 结构。 */
     private BaseASTNode procBody() {
         return programBody();
     }
 
-    // ==================== 语句部分 ====================
+    // ==================== 4. 语句部分 ====================
 
-    /** 非终结符 ProgramBody：begin StmList end */
+    /**
+     * 步骤 5：ProgramBody -> begin StmList end
+     * 过程体也复用这个入口。
+     */
     private BaseASTNode programBody() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.StmK;
@@ -419,6 +482,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析语句序列；遇到结束关键字时返回 null。 */
     private BaseASTNode stmList() {
         if (currentToken == null || getLexeme(currentToken).equals("end")
                 || getLexeme(currentToken).equals("else")
@@ -437,7 +501,10 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    /** 非终结符 Stm：if / while / read / write / return / 赋值 / 过程调用 */
+    /**
+     * 步骤 5.1：解析单条语句。
+     * 支持 if / while / read / write / return / 赋值 / 过程调用。
+     */
     private BaseASTNode stm() {
         BaseASTNode node = new BaseASTNode();
         node.lineno = currentToken != null ? currentToken.l : 0;
@@ -510,9 +577,9 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    // ==================== 表达式部分（优先级：relExp > exp > term > factor） ====================
+    // ==================== 5. 表达式部分（优先级：relExp > exp > term > factor） ====================
 
-    /** 非终结符 RelExp：Exp [ CmpOp Exp ] */
+    /** 步骤 6.1：关系表达式。 */
     private BaseASTNode relExp() {
         BaseASTNode node = exp();
         if (currentToken != null && (getLexeme(currentToken).equals("<") || getLexeme(currentToken).equals("="))) {
@@ -529,7 +596,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    /** 非终结符 Exp：Term { ( '+' | '-' ) Term } */
+    /** 步骤 6.2：加减表达式。 */
     private BaseASTNode exp() {
         BaseASTNode node = term();
         while (currentToken != null && (getLexeme(currentToken).equals("+") || getLexeme(currentToken).equals("-"))) {
@@ -546,7 +613,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
-    /** 非终结符 Term：Factor { ( '*' | '/' ) Factor } */
+    /** 步骤 6.3：乘除表达式。 */
     private BaseASTNode term() {
         BaseASTNode node = factor();
         while (currentToken != null && (getLexeme(currentToken).equals("*") || getLexeme(currentToken).equals("/"))) {
@@ -563,6 +630,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析变量：ID 后面可能继续跟数组下标或记录字段访问。 */
     private BaseASTNode variable() {
         BaseASTNode node = new BaseASTNode();
         node.nodeKind = NodeKind.ExpK;
@@ -576,6 +644,7 @@ public class RecursiveDescentParser {
         return parseVariMore(node);
     }
 
+    /** 解析变量后缀：[...] 或 .field，支持链式访问。 */
     private BaseASTNode parseVariMore(BaseASTNode base) {
         BaseASTNode current = base;
         while (currentToken != null) {
@@ -613,7 +682,7 @@ public class RecursiveDescentParser {
         return current;
     }
 
-    /** 非终结符 Factor：'(' Exp ')' | INTC | CHARC | Variable */
+    /** 步骤 6.4：因子。括号、常量、变量都在这里归一。 */
     private BaseASTNode factor() {
         BaseASTNode node = new BaseASTNode();
         node.lineno = currentToken != null ? currentToken.l : 0;
@@ -640,6 +709,7 @@ public class RecursiveDescentParser {
         return node;
     }
 
+    /** 解析实参列表；空参数列表返回 null。 */
     private BaseASTNode actParamList() {
         if (currentToken != null && !getLexeme(currentToken).equals(")")) {
             BaseASTNode node = exp();

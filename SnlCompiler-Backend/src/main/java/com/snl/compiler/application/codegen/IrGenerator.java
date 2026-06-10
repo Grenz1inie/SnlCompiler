@@ -19,7 +19,13 @@ public class IrGenerator {
     private final CodegenSymbols symbols = new CodegenSymbols();
     private IrProgram program;
 
-    /** 从程序根节点 ProK 生成 main 过程及全局数据区的 IR */
+    /**
+     * 步骤 1：入口。
+     * 1. 重置符号收集器和 IR 容器。
+     * 2. 校验根节点是否为 ProK。
+     * 3. 收集全局声明并生成过程 IR。
+     * 4. 生成 main 入口和退出指令。
+     */
     IrProgram generate(BaseASTNode root) {
         symbols.reset();
         program = new IrProgram();
@@ -40,6 +46,10 @@ public class IrGenerator {
         return program;
     }
 
+    /**
+     * 步骤 2：遍历声明链，找到所有过程声明并逐个生成 IR。
+     * 这里只处理 NodeKind.ProcDecK，其他声明交给符号表注册。
+     */
     private void emitProcedures(BaseASTNode decls) {
         for (BaseASTNode node = decls; node != null; node = node.sibling) {
             if (node.nodeKind == NodeKind.ProcDecK) {
@@ -48,6 +58,15 @@ public class IrGenerator {
         }
     }
 
+    /**
+     * 步骤 3：生成单个过程的 IR。
+     * 1. 生成过程标签。
+     * 2. 建立过程作用域。
+     * 3. 注册过程内部的类型和变量声明。
+     * 4. 绑定形参。
+     * 5. 递归生成过程体语句。
+     * 6. 退出作用域并补上返回指令。
+     */
     private void emitProcedure(BaseASTNode proc) {
         String procName = proc.name.isEmpty() ? "proc" : proc.name.get(0);
         program.add(IrInstruction.label("_proc_" + CodegenSymbols.sanitize(procName)));
