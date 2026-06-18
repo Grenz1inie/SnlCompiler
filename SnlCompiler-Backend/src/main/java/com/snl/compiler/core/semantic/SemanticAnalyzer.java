@@ -16,8 +16,17 @@ import com.snl.compiler.domain.symbol.SymbolTable;
  * <p>
  * 主要检查：重复定义、未声明标识符、赋值/运算类型兼容、条件表达式类型、过程调用等。
  * 分析通过后，符号表与 AST 供 {@link com.snl.compiler.application.codegen.IrGenerator} 生成中间代码。
+ * <p>
+ * 解析/分析顺序：
+ * 1. analyze() 从 AST 根节点开始。
+ * 2. traverse() 按节点种类分发到声明、语句、表达式处理函数。
+ * 3. 声明阶段把类型、变量、过程写入符号表，并检查重复定义。
+ * 4. 语句阶段检查赋值、if/while、read/write/call 的合法性。
+ * 5. 表达式阶段推导类型，检查算术和关系运算的类型兼容。
  */
 public class SemanticAnalyzer {
+
+    // ==================== 1. 状态 ====================
 
     /** 全局符号表（含作用域栈） */
     private SymbolTable symbolTable;
@@ -29,7 +38,11 @@ public class SemanticAnalyzer {
         this.errors = new ArrayList<>();
     }
 
-    /** 语义分析入口：从 AST 根节点开始深度优先遍历 */
+    /**
+     * 步骤 1：语义分析入口。
+     * 1. 先检查根节点是否为空。
+     * 2. 再从根节点开始深度优先遍历。
+     */
     public void analyze(BaseASTNode root) {
         if (root == null) {
             return;
@@ -46,8 +59,11 @@ public class SemanticAnalyzer {
     }
 
     /**
-     * 按节点类型分发处理：ProK 遍历子树，TypeK/VarK/ProcDecK 建符号，
-     * StmK 检查语句语义，ExpK 推导表达式类型。
+     * 步骤 2：按节点类型分发处理。
+     * 1. ProK 负责继续遍历子树。
+     * 2. TypeK/VarK/ProcDecK 负责建符号和开闭作用域。
+     * 3. StmK 负责语句语义检查。
+     * 4. ExpK 负责表达式类型推导。
      */
     private void traverse(BaseASTNode node) {
         if (node == null) {
@@ -90,6 +106,10 @@ public class SemanticAnalyzer {
         }
     }
 
+    /**
+     * 工具步骤：把 AST 中的类型节点统一归一成字符串类型名。
+     * 这里既处理基础类型，也处理数组、记录和类型别名。
+     */
     private String resolveTypeName(BaseASTNode typeNode) {
         if (typeNode == null) {
             return "unknown";
@@ -116,7 +136,13 @@ public class SemanticAnalyzer {
         return "unknown";
     }
 
-    /** 处理类型声明：将类型名插入符号表，检查重复定义 */
+    /**
+     * 步骤 3.1：处理类型声明。
+     * 1. 为每个类型名生成符号。
+     * 2. 记录实际类型信息。
+     * 3. 如果是数组，额外记录上下界和基类型。
+     * 4. 插入符号表并检查重复定义。
+     */
     private void handleTypeDec(BaseASTNode node) {
         for (String name : node.name) {
             Symbol s = new Symbol(name, SymbolKind.TypeK);
@@ -132,7 +158,12 @@ public class SemanticAnalyzer {
         }
     }
 
-    /** 处理变量声明：解析类型并登记每个标识符 */
+    /**
+     * 步骤 3.2：处理变量声明。
+     * 1. 先解析声明的类型。
+     * 2. 再把每个变量名写入符号表。
+     * 3. 若变量是数组，也记录数组上下界和基类型。
+     */
     private void handleVarDec(BaseASTNode node) {
         String typeName = resolveTypeName(node.child[0]);
         for (String name : node.name) {
@@ -149,6 +180,13 @@ public class SemanticAnalyzer {
         }
     }
 
+    /**
+     * 步骤 3.3：处理过程声明。
+     * 1. 过程名先进入当前作用域。
+     * 2. 进入过程内层作用域。
+     * 3. 依次处理参数、局部声明和过程体。
+     * 4. 退出过程作用域。
+     */
     private void handleProcDec(BaseASTNode node) {
         String procName = node.name.get(0);
         Symbol s = new Symbol(procName, SymbolKind.ProcK);
@@ -163,7 +201,13 @@ public class SemanticAnalyzer {
         symbolTable.exitScope();
     }
 
-    /** 处理语句：赋值类型检查、if/while 条件类型、read/write/call 合法性 */
+    /**
+     * 步骤 4：处理语句。
+     * 1. 赋值语句检查左值是否可赋值，再比对左右类型。
+     * 2. if/while 检查条件表达式类型。
+     * 3. call 检查过程是否已声明且确实是过程名。
+     * 4. read/write/return 检查参数或子表达式合法性。
+     */
     private void handleStm(BaseASTNode node) {
         if (node.stmKind == null) {
             return;
@@ -210,6 +254,10 @@ public class SemanticAnalyzer {
         }
     }
 
+    /**
+     * 工具步骤：检查一个变量节点是否可作为左值使用。
+     * 会递归穿过数组下标和记录字段，最终确认基标识符是否已声明且不是类型名/过程名。
+     */
     private void checkAssignable(BaseASTNode varNode, int line) {
         if (varNode == null) {
             return;
@@ -231,6 +279,9 @@ public class SemanticAnalyzer {
         }
     }
 
+    /**
+     * 工具步骤：检查 read 之类语句中出现的普通变量标识符是否合法。
+     */
     private void checkVarIdentifier(String name, int line) {
         Symbol sym = symbolTable.lookup(name);
         if (sym == null) {
@@ -240,11 +291,17 @@ public class SemanticAnalyzer {
         }
     }
 
+    /** 表达式节点统一走类型推导入口。 */
     private void handleExp(BaseASTNode node) {
         evalExpType(node);
     }
 
-    /** 推导表达式类型（integer/char/boolean），并报告未声明或类型错误 */
+    /**
+     * 步骤 5：推导表达式类型。
+     * 1. 常量直接归类为 integer 或 char。
+     * 2. 标识符需要查符号表并确认不是类型名/过程名。
+     * 3. 运算节点递归推导左右子树，再判断算术或关系运算类型是否兼容。
+     */
     private ExpType evalExpType(BaseASTNode node) {
         if (node == null) {
             return ExpType.Void;
@@ -306,6 +363,7 @@ public class SemanticAnalyzer {
         }
     }
 
+    /** 工具步骤：把符号表里的类型名映射成表达式类型。 */
     private ExpType toExpType(String typeName) {
         if ("integer".equalsIgnoreCase(typeName) || "array".equalsIgnoreCase(typeName)) {
             return ExpType.Integer;
@@ -316,13 +374,14 @@ public class SemanticAnalyzer {
         return ExpType.Integer;
     }
 
+    /** 工具步骤：判断声明类型和表达式类型是否兼容。 */
     private boolean typesCompatible(String typeName, ExpType expType) {
         ExpType declared = toExpType(typeName);
         return declared == expType || expType == ExpType.Integer;
     }
 
+    /** 工具步骤：判断左右子表达式的类型是否兼容。 */
     private boolean typesCompatible(ExpType left, ExpType right) {
         return left == right || left == ExpType.Integer || right == ExpType.Integer;
     }
 }
-
